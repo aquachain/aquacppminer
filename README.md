@@ -1,0 +1,3 @@
+# aquacppminer
+
+Aquachain optimized miner.
