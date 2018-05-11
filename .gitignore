@@ -1,0 +1,16 @@
+prj/
+bin/
+bin32/
+*.swp
+*.bak
+libcurl/
+rapidjson/
+rel/*
+tools/
+.~*
+*.TMP
+mpir-3.0.0/
+phc-winner-argon2/
+openssl-1.1.0f-vs2015/
+*.diagsession
+change_*
