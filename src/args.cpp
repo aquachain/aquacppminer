@@ -70,10 +70,7 @@ bool parseArgs(const char* prefix, int argc, char** argv)
 	}
 
 	if (ip.cmdOptionExists(OPT_REFRESH_RATE)) {
-		char unit[8];
-		float refreshRate;
-		std::string refreshStr = ip.getCmdOption(OPT_REFRESH_RATE);
-		auto res = parseRefreshRate(refreshStr);
+		auto res = parseRefreshRate(ip.getCmdOption(OPT_REFRESH_RATE));
 		if (!res.first)
 			return false;
 		cfg.refreshRateMs = res.second;

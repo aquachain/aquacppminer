@@ -1,5 +1,4 @@
 #include "miningConfig.h"
-#include "uniqid.h"
 
 static MiningConfig s_cfg;
 

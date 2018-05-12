@@ -39,3 +39,16 @@ Content-Type: text/plain; charset=utf-8
 
 {"id":14,"jsonrpc":"2.0","result":true}`
 ```
+
+* Sending hashrate to node ?
+
+```
+SubmitHashrate can be used for remote miners to submit their hash rate. This enables the node to report the combined
+hash rate of all miners which submit work through this node. It accepts the miner hash rate and an identifier which
+must be unique between nodes.
+func(api *PublicMinerAPI) SubmitHashrate(hashrate hexutil.Uint64, id common.Hash) bool{
+	api.agent.SubmitHashrate(id, uint64(hashrate))
+	return true
+}
+```
+

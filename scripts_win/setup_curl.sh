@@ -12,8 +12,8 @@ rm -rf "$BUILD_PATH"
 echo
 echo "Clone & compile"
 
-# clone build-libcurl-windows
-git clone https://github.com/huuuus/build-libcurl-windows.git "$BUILD_PATH"
+# clone libcurl builder
+git clone https://bitbucket.org/cryptogone/libcurl-win.git "$BUILD_PATH"
 
 # build
 cd "$BUILD_PATH"
