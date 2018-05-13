@@ -608,7 +608,7 @@ void minerThreadFn(int minerID)
 		HashParams newParams = currentHashParams();
 
 		// if params valid
-		if (newParams.height != 0) {
+		if (newParams.blockHeaderHash.size() != 0) {
 //			// generate a nonce
 //			assert(newParams.nonce.size() == 0);
 //#if USE_UNIQUE_NONCE

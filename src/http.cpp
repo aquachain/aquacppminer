@@ -79,8 +79,13 @@ bool httpGetString(const string& url, string& out)
 // inspired from: https://raw.githubusercontent.com/curl/curl/master/docs/examples/postinmemory.c
 
 // ex: httpPostUrlEncodedRaw("http://www.example.org/", "Field=1&Field=2&Field=3")
-bool httpPostUrlEncoded(const std::string& url, const std::string& postFields, std::string& out) {
-	CURLcode res = CURLE_FAILED_INIT;	
+bool httpPost(
+	const std::string& url,
+	const std::string& postData,
+	std::string& out,
+	const std::vector<std::string>* pHeaderLines)
+{
+	CURLcode res = CURLE_FAILED_INIT;
 	out.clear();
 
 	struct MemoryStruct chunk;
@@ -92,13 +97,21 @@ bool httpPostUrlEncoded(const std::string& url, const std::string& postFields, s
 		// A parameter set to 1 tells libcurl to do a regular HTTP post. This will also make the library use a "Content-Type: application/x-www-form-urlencoded" header. 
 		curl_easy_setopt(curlHandle, CURLOPT_POST, 1L);
 
-		curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDS, postFields.c_str());
-		curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDSIZE, postFields.size());
+		if (pHeaderLines) {
+			struct curl_slist *headers = NULL;
+			for (auto it : *pHeaderLines) {
+				headers = curl_slist_append(headers, it.c_str());
+			}
+			curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, headers);
+		}
+
+		curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDS, postData.c_str());
+		curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDSIZE, postData.size());
 		curl_easy_setopt(curlHandle, CURLOPT_URL, url.c_str());
 		curl_easy_setopt(curlHandle, CURLOPT_USERAGENT, "libcurl-agent/1.0");
 
 		curl_easy_setopt(curlHandle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
-		curl_easy_setopt(curlHandle, CURLOPT_WRITEDATA, (void *)&chunk);		
+		curl_easy_setopt(curlHandle, CURLOPT_WRITEDATA, (void *)&chunk);
 
 		res = curl_easy_perform(curlHandle);
 		if (res == CURLE_OK) {

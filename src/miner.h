@@ -19,14 +19,10 @@ const uint32_t ARO_ARGON2I_HASH_LEN = 32;
 extern const std::string MAX_BEST;
 
 struct HashParams {
-	std::string nonce = "";
-	std::string publicKey = "";
-	std::string block = "";
 	std::string difficulty = "";
-	uint32_t limit = 0;
-	uint32_t height = 0;
+	std::string target = "";
+	std::string blockHeaderHash = "";
 	const HashReference* pRef = nullptr;
-	bool compareResultToNode = false;
 };
 
 struct HashTimings {

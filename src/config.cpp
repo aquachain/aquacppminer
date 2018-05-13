@@ -88,7 +88,7 @@ bool createConfigFile(std::string &log) {
 	bool modeOk = false;
 	while (!modeOk) {
 		std::cin.clear();
-		std::cout << "pool or solo mine ? (pool/solo)";
+		std::cout << "pool or solo mine ? (pool/solo) ";
 		std::string modeStr;
 		std::getline(std::cin, modeStr);
 		modeOk = true;

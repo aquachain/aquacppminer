@@ -215,14 +215,14 @@ int main(int argc, char** argv) {
 			std::chrono::duration<float> durationSinceStart = tNow - tMiningStart;
 			float hashesPerSecondSinceStart = (float)nHashes / durationSinceStart.count();
 
+			logLine(COORDINATOR_LOG_PREFIX, "working...");
+
 			// log info
-			auto params = currentHashParams();
+			/*auto params = currentHashParams();
 			std::string bestStr = getBestStr(params.height);
 			if (bestStr == MAX_BEST) {
 				bestStr = "N/A";
-			}
-
-			logLine(COORDINATOR_LOG_PREFIX, "working...");
+			}*/
 
 			//mpz_t mpz_poolLimit;
 			//mpz_init_set_ui(mpz_poolLimit, params.limit);
