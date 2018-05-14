@@ -90,35 +90,31 @@ typedef struct {
 }t_blocksInfo;
 
 std::string formatBlockInfo(const t_blockInfo &b) {
-	char version[8];
-	if (b.version >= 0)
-		snprintf(version, sizeof(version), "%d", b.version);
-	else
-		snprintf(version, sizeof(version), "unknown");
-
 	char buf[512];
 	if (b.miner.size() == 0) {
 		snprintf(buf, sizeof(buf), 
-			"block   : %s\n"
-			"diff    : %s\n"
-			"version : %s",
+			"height  : %s\n"
+			"diff    : %s",
 			b.height.c_str(),
-			b.difficultyInt.c_str(),
-			version);
+			b.difficultyInt.c_str());
 	}
 	else {
 		snprintf(buf, sizeof(buf), 
-			"block   : %s\n"
+			"height  : %s\n"
 			"miner   : %s\n"
 			"diff    : %s\n"
-			"nonce   : %s\n"
-			"version : %s",
+			"nonce   : %s",
 			b.height.c_str(),
 			b.miner.c_str(),
 			b.difficultyInt.c_str(),
-			b.nonce.c_str(),
-			version);
+			b.nonce.c_str());
 	}
+
+	if (b.version >= 0) {
+		auto n = strlen(buf);
+		snprintf(buf + n, sizeof(buf)-n, "\nversion : %d", b.version);
+	}
+	
 	return buf;
 }
 
@@ -241,9 +237,9 @@ static bool updatePoolParams(const MiningConfig& config, HashParams &hashParams,
 {	
 	// get work
 	std::string getWorkResponse;
-	bool postRequestOk = performGetWorkRequest(config.nodeUrl, getWorkResponse);
+	bool postRequestOk = performGetWorkRequest(config.getWorkUrl, getWorkResponse);
 	if (!postRequestOk) {
-		logLine(UPDATE_THREAD_LOG_PREFIX, "updatePoolParams: post request failed");
+		logLine(UPDATE_THREAD_LOG_PREFIX, "getWork request failed (%s)", config.getWorkUrl.c_str());
 		return false;
 	}
 
@@ -251,11 +247,13 @@ static bool updatePoolParams(const MiningConfig& config, HashParams &hashParams,
 	Document work;
 	work.Parse(getWorkResponse.c_str());
 	if (!work.IsObject()) {
+		logLine(UPDATE_THREAD_LOG_PREFIX, "getWork response does not look like JSON (%s)", config.getWorkUrl.c_str());
 		return false;
 	}
 
 	// update current hashParams with the work
 	if (!setCurrentWork(work, hashParams)) {
+		logLine(UPDATE_THREAD_LOG_PREFIX, "cannot parse getWork JSON (%s)", config.getWorkUrl.c_str());
 		return false;
 	}
 
@@ -274,7 +272,6 @@ HashParams currentHashParams() {
 
 // regularly polls the pool to get new HashParams when block changes
 void updateThreadFn() {
-	logLine(UPDATE_THREAD_LOG_PREFIX, "Pool/node update thread launched");
 	auto tStart = high_resolution_clock::now();
 	uint32_t nHashes = getTotalHashes();
 
@@ -304,39 +301,56 @@ void updateThreadFn() {
 			nHashes = nHashesNow;
 		}
 
+		// call aqua_getWork on node / pool
 		bool ok = updatePoolParams(miningConfig(), newHashParams, hashRate);
 		if (!ok) {
-			logLine(UPDATE_THREAD_LOG_PREFIX, "%s is not responding, retrying in %.2fs",
-				miningConfig().nodeUrl.c_str(),
+			logLine(UPDATE_THREAD_LOG_PREFIX, "problem getting new work, retrying in %.2fs",
 				miningConfig().refreshRateMs/1000.f);
 		}
 		else {
+			// we have new work (a new block)
 			if (s_hashParams.blockHeaderHash != newHashParams.blockHeaderHash) {
+				// update miner params, must be done first, as quick as possible
 				s_hashParams_mutex.lock();
 				{
 					s_hashParams = newHashParams;
 				}
 				s_hashParams_mutex.unlock();
 
+				// refresh latest/pending blocks info
+				bool hasFullNode = miningConfig().fullNodeUrl.size() > 0;
+				std::string queryUrl = hasFullNode ?
+					miningConfig().fullNodeUrl :
+					miningConfig().getWorkUrl;
+
+				// building log message
 				char header[2048];
-				snprintf(header, sizeof(header), "\n\nNew Block, hash: %s... difficulty: %s\n",
-					newHashParams.blockHeaderHash.substr(0, 8).c_str(),
+				snprintf(header, sizeof(header), "New Work:\n\n- Work info -\nhash: %s\n%s: %s\n",
+					newHashParams.blockHeaderHash.c_str(),
+					miningConfig().soloMine ? "difficulty" : "share difficulty",
 					newHashParams.difficulty.c_str());
-				
-				char body[2048];
+
+				char body[2048] = { 0 };
 				t_blocksInfo blocksInfo;
-				if (!getBlocksInfo(miningConfig().nodeUrl, blocksInfo)) {
-					snprintf(body, sizeof(body), "failed to get latest/pending block info from pool");
+				if (!getBlocksInfo(queryUrl, blocksInfo)) {
+					snprintf(body, sizeof(body), "Cannot show new block information (do not panic, mining might still be ok)");
 				}
 				else {
-					snprintf(body, sizeof(body), "- Latest block -\n%s\n\n- Pending block -\n%s\n",
-						formatBlockInfo(blocksInfo.latest).c_str(),
-						formatBlockInfo(blocksInfo.pending).c_str());
+					if (hasFullNode) {
+						snprintf(body, sizeof(body), "- Latest block -\n%s\n\n",
+							formatBlockInfo(blocksInfo.latest).c_str());
+					}
+					auto n = strlen(body);
+					snprintf(body + n, sizeof(body) - n, "- Pending block -\n%s\ntarget  : %s\n",
+						formatBlockInfo(blocksInfo.pending).c_str(),
+						newHashParams.target.c_str());
 				}
-
+				
+				// log new work / block info
 				logLine(UPDATE_THREAD_LOG_PREFIX, "%s\n%s", header, body);
 			}
 		}
+
 		std::this_thread::sleep_for(std::chrono::milliseconds(miningConfig().refreshRateMs));
 	}
 }

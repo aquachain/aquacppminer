@@ -1,6 +1,7 @@
 #include "miningConfig.h"
 #include "config.h"
 #include "args.h"
+#include "string_utils.h"
 
 #ifdef _MSC_VER
 #include "windows/procinfo_windows.h"
@@ -16,6 +17,13 @@ extern std::string s_configDir;
 
 const std::string CONFIG_FILE_NAME = "config.cfg";
 
+std::string readInput() {
+	std::string res;
+	std::getline(std::cin, res);
+	res = trim(res);
+	return res;
+}
+
 std::string configFilePath()
 {
 	return s_configDir + CONFIG_FILE_NAME;
@@ -23,9 +31,10 @@ std::string configFilePath()
 
 enum {
 	MODE = 0,
-	NODE_URL,
+	GET_WORK_URL,
 	NTHREADS,
 	REFRESH_RATE_MS,
+	FULLNODE_URL,
 	N_PARAMS
 };
 
@@ -47,7 +56,7 @@ bool loadConfigFile(std::string& log) {
 			log = "not enough lines";
 			return false;
 		}
-		if (strlen(params[i]) <= 0) {
+		if (i != FULLNODE_URL && (params[i]) <= 0) {
 			log = "empty param";
 			return false;
 		}
@@ -64,7 +73,8 @@ bool loadConfigFile(std::string& log) {
 		return false;
 	}
 		
-	newCfg.nodeUrl = params[NODE_URL];
+	newCfg.getWorkUrl = params[GET_WORK_URL];
+	newCfg.fullNodeUrl = params[FULLNODE_URL];
 
 	if (sscanf(params[NTHREADS], "%d", &newCfg.nThreads) != 1) {
 		log = "cannot find thread count";
@@ -104,18 +114,36 @@ bool createConfigFile(std::string &log) {
 		}
 	}
 
-	bool nodeUrlOk = false;
-	while (!nodeUrlOk) {
+	bool getWorkUrlOk = false;
+	while (!getWorkUrlOk) {
 		std::cin.clear();
 		std::cout << 
 			(newCfg.soloMine ?
 				"Enter node url (ex: http://127.0.0.1:8543)" :
-				"Enter pool address (ex: http://pool.aquachain-foundation.org:8888/0x1d23de...): ")
-			<< std::endl;
-		std::getline(std::cin, newCfg.nodeUrl);
-		if (newCfg.nodeUrl.size() == 0)
-			newCfg.nodeUrl = miningConfig().nodeUrl;
-		nodeUrlOk = true;
+				"Enter pool url (ex: http://pool.aquachain-foundation.org:8888/0x1d23de...)")
+				<< ", if empty, will pool mine to dev wallet): " << std::endl;
+		std::getline(std::cin, newCfg.getWorkUrl);
+		newCfg.getWorkUrl = trim(newCfg.getWorkUrl);
+		if (newCfg.getWorkUrl.size() == 0) {
+			newCfg.getWorkUrl = miningConfig().defaultSubmitWorkUrl;
+			newCfg.soloMine = false;
+		}
+		getWorkUrlOk = true;
+	}
+
+	if (newCfg.soloMine) {
+		newCfg.fullNodeUrl = newCfg.getWorkUrl;
+	}
+	else {
+		bool fullNodeUrlOk = false;
+		while (!fullNodeUrlOk) {
+			std::cin.clear();
+			std::cout <<
+				"Enter node url, ex: http://127.0.0.1:8543 (optional, enter to skip):"
+				<< std::endl;
+			newCfg.fullNodeUrl = readInput();
+			fullNodeUrlOk = true;
+		}
 	}
 
 	bool nThreadsOk = false;
@@ -167,9 +195,10 @@ bool createConfigFile(std::string &log) {
 	}
 
 	fs << (newCfg.soloMine ? "solo" : "pool") << std::endl;
-	fs << newCfg.nodeUrl << std::endl;
+	fs << newCfg.getWorkUrl << std::endl;
 	fs << newCfg.nThreads << std::endl;
 	fs << newCfg.refreshRateMs << std::endl;
+	fs << newCfg.fullNodeUrl << std::endl;
 
 	fs.close();
 	if (!fs) {

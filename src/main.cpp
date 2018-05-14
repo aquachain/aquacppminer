@@ -187,14 +187,24 @@ int main(int argc, char** argv) {
 	}
 
 	auto tMiningStart = high_resolution_clock::now();
-	auto tLast = tMiningStart; 
+	auto tLast = tMiningStart;
 	uint32_t nHashesLast = 0;
 	if (s_run) {
 		auto nThreads = miningConfig().nThreads;
-		logLine(COORDINATOR_LOG_PREFIX, "--- Start %s mining ---", miningConfig().soloMine ? "solo" : "pool");
-		logLine(COORDINATOR_LOG_PREFIX, "url      : %s", miningConfig().nodeUrl.c_str());
-		logLine(COORDINATOR_LOG_PREFIX, "nthreads : %d", nThreads);
-		logLine(COORDINATOR_LOG_PREFIX, "refresh  : %2.1fs", miningConfig().refreshRateMs / 1000.0f);
+		logLine(COORDINATOR_LOG_PREFIX, "--- Start %s mining ---",
+			miningConfig().soloMine ? "solo" : "pool");
+		logLine(COORDINATOR_LOG_PREFIX, 
+			"%-8s : %s", miningConfig().soloMine ? "node" : "pool", 
+			miningConfig().getWorkUrl.c_str());
+		if (!miningConfig().soloMine && 
+			miningConfig().fullNodeUrl.size() > 0) {
+			logLine(COORDINATOR_LOG_PREFIX, "node url : %s", 
+				miningConfig().fullNodeUrl.c_str());
+		}
+		logLine(COORDINATOR_LOG_PREFIX,     "nthreads : %d", 
+			nThreads);
+		logLine(COORDINATOR_LOG_PREFIX,     "refresh  : %2.1fs", 
+			miningConfig().refreshRateMs / 1000.0f);
 		startMinerThreads(nThreads);
 	}
 

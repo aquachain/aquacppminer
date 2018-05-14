@@ -7,12 +7,16 @@ struct MiningConfig {
 	bool soloMine;
 	uint32_t nThreads;
 	uint32_t refreshRateMs;
-	std::string nodeUrl;
-	std::string devPoolUrl;
+
+	std::string getWorkUrl;
+	std::string submitWorkUrl;
+	std::string fullNodeUrl;
+
+	std::string defaultSubmitWorkUrl;
 };
 
 void initMiningConfig();
 const MiningConfig& miningConfig();
 
 // do not call that during mining, only during init !
-void setMiningConfig(const MiningConfig& cfg);
+void setMiningConfig(MiningConfig cfg);

@@ -7,17 +7,19 @@
 
 const std::string OPT_USAGE = "-h";
 const std::string OPT_NTHREADS = "-t";
-const std::string OPT_NODE_URL = "-F";
+const std::string OPT_GETWORK_URL = "-F";
+const std::string OPT_FULLNODE_URL = "-n";
 const std::string OPT_REFRESH_RATE = "-r";
 const std::string OPT_SOLO = "--solo";
 
 static const std::string s_usageMsg = 
 "--- Usage ---\n"
-"aquacppminer.exe    [-F pool/node address] [-t nThreads] [--solo] [-h]\n"
+"aquacppminer.exe -F url [-t nThreads] [-n nodeUrl] [--solo] [-h]\n"
+"  -F url              : url of pool or node to mine on, if not specified, will pool mine to dev's aquabase\n"
+"  --solo              : solo mining, -F needs to be the node url\n"
 "  -t nThreads         : number of threads to use (if not specified will use maximum logical threads available)\n"
-"  -F url              : url of pool or node (solo mining), if not specified, will pool mine to dev's aquabase\n"
+"  -n node_url         : optional node url, to get more stats (pool mining only)"
 "  -r                  : refresh rate, ex: 1s, 2.5m\n"
-"  --solo              : solo mining, if not specified default is pool mining\n"
 "  -h                  : display this help message and exit\n"
 "\n"
 ;
@@ -54,6 +56,10 @@ bool parseArgs(const char* prefix, int argc, char** argv)
 		return false;
 	}
 
+	if (ip.cmdOptionExists(OPT_SOLO)) {
+		cfg.soloMine = true;
+	}
+
 	if (ip.cmdOptionExists(OPT_NTHREADS)) {
 		const auto& nThreadsStr = ip.getCmdOption(OPT_NTHREADS);
 		int n = sscanf(nThreadsStr.c_str(), "%u", &cfg.nThreads);
@@ -65,10 +71,6 @@ bool parseArgs(const char* prefix, int argc, char** argv)
 		}
 	}
 
-	if (ip.cmdOptionExists(OPT_NODE_URL)) {
-		cfg.nodeUrl = ip.getCmdOption(OPT_NODE_URL);
-	}
-
 	if (ip.cmdOptionExists(OPT_REFRESH_RATE)) {
 		auto res = parseRefreshRate(ip.getCmdOption(OPT_REFRESH_RATE));
 		if (!res.first)
@@ -76,8 +78,12 @@ bool parseArgs(const char* prefix, int argc, char** argv)
 		cfg.refreshRateMs = res.second;
 	}
 
-	if (ip.cmdOptionExists(OPT_SOLO)) {
-		cfg.soloMine = true;
+	if (ip.cmdOptionExists(OPT_GETWORK_URL)) {
+		cfg.getWorkUrl = ip.getCmdOption(OPT_GETWORK_URL);
+	}
+
+	if (ip.cmdOptionExists(OPT_FULLNODE_URL)) {
+		cfg.fullNodeUrl = ip.getCmdOption(OPT_FULLNODE_URL);
 	}
 
 	setMiningConfig(cfg);
