@@ -50,6 +50,9 @@ bool submit(
 	const std::string& resultToTestVsNode = "");
 
 void makeNonce(std::string &nonceStr);
-std::string heightStr(mpz_t mpz_height);
 
 void freeCurrentThreadMiningMemory();
+
+#include <gmp.h>
+void mpz_maxBest(mpz_t mpz_n);
+

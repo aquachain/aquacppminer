@@ -15,6 +15,9 @@
 #include "updateThread.h"
 #include "http.h"
 #include "log.h"
+#include "hex_encode_utils.h"
+
+#include <atomic>
 
 #undef GetObject
 
@@ -22,47 +25,17 @@ using namespace rapidjson;
 
 using std::chrono::high_resolution_clock;
 
-const uint64_t SEND_INITIAL_HASH_RATE_AFTER_S = 30;
-const uint64_t HASH_RATE_SEND_INTERVAL_S = 10 * 60;
+const char* UPDATE_THREAD_LOG_PREFIX = "UPDT";
+const char* RESULT = "result";
+const std::vector<std::string> HTTP_HEADER = { 
+	"Accept: application/json", 
+	"Content-Type: application/json" 
+};
 
+static bool s_bUpdateThreadRun = true;
 static std::mutex s_hashParams_mutex;
 static HashParams s_hashParams;
-static bool s_bUpdateThreadRun = true;
-bool s_initialHashRateSent = false;
-
-const char* UPDATE_THREAD_LOG_PREFIX = "UPDT";
-
-#include <atomic>
-std::atomic<uint32_t> s_nodeReqId = 0;
-
-std::string mpzToString(mpz_t num) {
-	char buf[64];
-	gmp_snprintf(buf, sizeof(buf), "%Zd", num);
-	return buf;
-}
-
-void decodeHex(const char* encoded, mpz_t mpz_res) {
-	auto pStart = encoded;
-	if (strncmp(encoded, "0x", 2)==0)
-		pStart += 2;
-	mpz_init_set_str(mpz_res, pStart, 16);
-}
-
-std::string decodeHex(const std::string &encoded) {
-	mpz_t mpz_diff;
-	decodeHex(encoded.c_str(), mpz_diff);
-	return mpzToString(mpz_diff);
-}
-
-void encodeHex(mpz_t mpz_num, std::string& res) {
-	char buf[512];
-	gmp_snprintf(buf, sizeof(buf), "0x%Zd", mpz_num);
-	res.assign(buf);
-}
-
-const char* RESULT = "result";
-
-const std::vector<std::string> httpHeader = { "Accept: application/json", "Content-Type: application/json" };
+static std::atomic<uint32_t> s_nodeReqId = 0;
 
 static bool performGetWorkRequest(const std::string &nodeUrl, std::string &response) 
 {
@@ -73,7 +46,7 @@ static bool performGetWorkRequest(const std::string &nodeUrl, std::string &respo
 		"{\"jsonrpc\":\"2.0\", \"id\" : %d, \"method\" : \"aqua_getWork\", \"params\" : null}",
 		s_nodeReqId++);
 	
-	return httpPost(nodeUrl, getWorkParams, response, &httpHeader);
+	return httpPost(nodeUrl, getWorkParams, response, &HTTP_HEADER);
 }
 
 typedef struct {
@@ -130,7 +103,7 @@ static bool getBlocksInfo(const std::string &nodeUrl, t_blocksInfo &result)
 			blockNum.c_str());
 		
 		std::string resp;
-		if (!httpPost(nodeUrl, getPendingBlockParams, resp, &httpHeader))
+		if (!httpPost(nodeUrl, getPendingBlockParams, resp, &HTTP_HEADER))
 			return false;
 
 		std::vector<std::string> params;
@@ -233,7 +206,7 @@ static bool setCurrentWork(const Document &work, HashParams &hashParams) {
 	return true;
 }
 
-static bool updatePoolParams(const MiningConfig& config, HashParams &hashParams, uint32_t hashRate) 
+static bool updatePoolParams(const MiningConfig& config, HashParams &hashParams) 
 {	
 	// get work
 	std::string getWorkResponse;
@@ -282,27 +255,9 @@ void updateThreadFn() {
 		auto tNow = high_resolution_clock::now();
 		std::chrono::duration<float> durationSinceLast = tNow - tStart;
 		bool recomputeHashRate = false;
-		if (!s_initialHashRateSent) {
-			if (durationSinceLast.count() >= SEND_INITIAL_HASH_RATE_AFTER_S) {
-				s_initialHashRateSent = true;
-				recomputeHashRate = true;
-			}
-		}
-		else {
-			if (durationSinceLast.count() >= HASH_RATE_SEND_INTERVAL_S) {
-				recomputeHashRate = true;
-			}
-		}
-
-		uint32_t hashRate = 0;
-		if (recomputeHashRate) {
-			hashRate = (nHashesNow - nHashes) / (uint32_t)(durationSinceLast.count());
-			tStart = tNow;
-			nHashes = nHashesNow;
-		}
 
 		// call aqua_getWork on node / pool
-		bool ok = updatePoolParams(miningConfig(), newHashParams, hashRate);
+		bool ok = updatePoolParams(miningConfig(), newHashParams);
 		if (!ok) {
 			logLine(UPDATE_THREAD_LOG_PREFIX, "problem getting new work, retrying in %.2fs",
 				miningConfig().refreshRateMs/1000.f);
@@ -325,10 +280,17 @@ void updateThreadFn() {
 
 				// building log message
 				char header[2048];
-				snprintf(header, sizeof(header), "New Work:\n\n- Work info -\nhash: %s\n%s: %s\n",
+				snprintf(header, sizeof(header), "New Work:\n\n- Work info -\n%-16s : %s\n%-16s : %s\n%-16s : %s\n",
+					"hash", 
 					newHashParams.blockHeaderHash.c_str(),
 					miningConfig().soloMine ? "difficulty" : "share difficulty",
-					newHashParams.difficulty.c_str());
+					newHashParams.difficulty.c_str(),
+					"target",
+					newHashParams.target.c_str());
+
+				// target = 2 ^ 256 / difficulty
+				mpz_t mpz_max;
+				mpz_maxBest(mpz_max);
 
 				char body[2048] = { 0 };
 				t_blocksInfo blocksInfo;
