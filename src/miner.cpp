@@ -56,6 +56,7 @@ void mpz_maxBest(mpz_t mpz_n) {
 	mpz_t mpz_two, mpz_exponent;
 	mpz_init_set_str(mpz_two, "2", 10);
 	mpz_init_set_str(mpz_exponent, "256", 10);
+	mpz_init_set_str(mpz_n, "0", 10);
 	mpz_pow_ui(mpz_n, mpz_two, mpz_get_ui(mpz_exponent));
 }
 

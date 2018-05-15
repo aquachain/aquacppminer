@@ -37,6 +37,22 @@ static std::mutex s_hashParams_mutex;
 static HashParams s_hashParams;
 static std::atomic<uint32_t> s_nodeReqId = 0;
 
+// target = 2 ^ 256 / difficulty
+void computeTarget(mpz_t mpz_difficulty, mpz_t &mpz_target) {
+	mpz_t mpz_numerator;
+	mpz_maxBest(mpz_numerator);
+	mpz_init_set_str(mpz_target, "0", 10);
+	mpz_div(mpz_target, mpz_numerator, mpz_difficulty);
+}
+
+// difficulty = 2 ^ 256 / target
+void computeDifficulty(mpz_t mpz_target, mpz_t &mpz_difficulty) {
+	mpz_t mpz_numerator;
+	mpz_maxBest(mpz_numerator);
+	mpz_init_set_str(mpz_difficulty, "0", 10);
+	mpz_div(mpz_difficulty, mpz_numerator, mpz_target);
+}
+
 static bool performGetWorkRequest(const std::string &nodeUrl, std::string &response) 
 {
 	char getWorkParams[512];
@@ -50,7 +66,8 @@ static bool performGetWorkRequest(const std::string &nodeUrl, std::string &respo
 }
 
 typedef struct {
-	std::string difficultyInt;
+	std::string difficulty;
+	std::string target;
 	std::string miner;
 	std::string nonce;
 	std::string height;
@@ -64,28 +81,33 @@ typedef struct {
 
 std::string formatBlockInfo(const t_blockInfo &b) {
 	char buf[512];
+
 	if (b.miner.size() == 0) {
 		snprintf(buf, sizeof(buf), 
-			"height  : %s\n"
-			"diff    : %s",
-			b.height.c_str(),
-			b.difficultyInt.c_str());
+			"%-16s : %s\n"
+			"%-16s : %s\n"
+			"%-16s : %s",
+			"height", b.height.c_str(),
+			"diff", b.difficulty.c_str(),
+			"target", b.target.c_str());
 	}
 	else {
 		snprintf(buf, sizeof(buf), 
-			"height  : %s\n"
-			"miner   : %s\n"
-			"diff    : %s\n"
-			"nonce   : %s",
-			b.height.c_str(),
-			b.miner.c_str(),
-			b.difficultyInt.c_str(),
-			b.nonce.c_str());
+			"%-16s : %s\n"
+			"%-16s : %s\n"
+			"%-16s : %s\n"
+			"%-16s : %s\n"
+			"%-16s : %s",
+			"height", b.height.c_str(),
+			"miner", b.miner.c_str(),
+			"diff", b.difficulty.c_str(),
+			"target", b.target.c_str(),
+			"nonce", b.nonce.c_str());
 	}
 
 	if (b.version >= 0) {
 		auto n = strlen(buf);
-		snprintf(buf + n, sizeof(buf)-n, "\nversion : %d", b.version);
+		snprintf(buf + n, sizeof(buf)-n, "\n%-16s : %d", "version", b.version);
 	}
 	
 	return buf;
@@ -115,11 +137,19 @@ static bool getBlocksInfo(const std::string &nodeUrl, t_blocksInfo &result)
 
 		auto result = doc[RESULT].GetObject();
 
+		// read difficulty
 		const char* DIFFICULTY = "difficulty";
 		if (!result.HasMember(DIFFICULTY)) {
 			return false;
 		}
-		res.difficultyInt = decodeHex(result[DIFFICULTY].GetString());
+		mpz_t mpz_difficulty;
+		decodeHex(result[DIFFICULTY].GetString(), mpz_difficulty);
+		res.difficulty = mpzToString(mpz_difficulty);
+
+		// compute target from difficulty
+		mpz_t mpz_target;
+		computeTarget(mpz_difficulty, mpz_target);
+		res.target = mpzToString(mpz_target);
 
 		const char* MINER = "miner";
 		if (result.HasMember(MINER) && result[MINER].IsString()) {
@@ -158,19 +188,6 @@ static bool getBlocksInfo(const std::string &nodeUrl, t_blocksInfo &result)
 	}
 
 	return true;
-}
-
-// difficulty = 2 ^ 256 / target
-void computeDifficulty(mpz_t mpz_target, mpz_t &mpz_difficulty) {
-	mpz_t mpz_basis, mpz_exponent, mpz_numerator;
-	mpz_init_set_str(mpz_basis, "2", 10);
-	mpz_init_set_str(mpz_exponent, "256", 10);
-	
-	mpz_init_set_str(mpz_numerator, "0", 10);
-	mpz_pow_ui(mpz_numerator, mpz_basis, mpz_get_ui(mpz_exponent));
-
-	mpz_init_set_str(mpz_difficulty, "0", 10);
-	mpz_div(mpz_difficulty, mpz_numerator, mpz_target);
 }
 
 static bool setCurrentWork(const Document &work, HashParams &hashParams) {
@@ -283,14 +300,10 @@ void updateThreadFn() {
 				snprintf(header, sizeof(header), "New Work:\n\n- Work info -\n%-16s : %s\n%-16s : %s\n%-16s : %s\n",
 					"hash", 
 					newHashParams.blockHeaderHash.c_str(),
-					miningConfig().soloMine ? "difficulty" : "share difficulty",
+					miningConfig().soloMine ? "block difficulty" : "share difficulty",
 					newHashParams.difficulty.c_str(),
-					"target",
+					miningConfig().soloMine ? "block target" : "share target",
 					newHashParams.target.c_str());
-
-				// target = 2 ^ 256 / difficulty
-				mpz_t mpz_max;
-				mpz_maxBest(mpz_max);
 
 				char body[2048] = { 0 };
 				t_blocksInfo blocksInfo;
@@ -299,13 +312,12 @@ void updateThreadFn() {
 				}
 				else {
 					if (hasFullNode) {
-						snprintf(body, sizeof(body), "- Latest block -\n%s\n\n",
+						snprintf(body, sizeof(body), "- Latest mined block -\n%s\n\n",
 							formatBlockInfo(blocksInfo.latest).c_str());
 					}
 					auto n = strlen(body);
-					snprintf(body + n, sizeof(body) - n, "- Pending block -\n%s\ntarget  : %s\n",
-						formatBlockInfo(blocksInfo.pending).c_str(),
-						newHashParams.target.c_str());
+					snprintf(body + n, sizeof(body) - n, "- Pending block (not yet found) -\n%s\n",
+						formatBlockInfo(blocksInfo.pending).c_str());
 				}
 				
 				// log new work / block info
