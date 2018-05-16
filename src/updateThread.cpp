@@ -33,8 +33,8 @@ const std::vector<std::string> HTTP_HEADER = {
 };
 
 static bool s_bUpdateThreadRun = true;
-static std::mutex s_hashParams_mutex;
-static HashParams s_hashParams;
+static std::mutex s_workParams_mutex;
+static WorkParams s_workParams;
 static std::atomic<uint32_t> s_nodeReqId = 0;
 
 // target = 2 ^ 256 / difficulty
@@ -190,7 +190,7 @@ static bool getBlocksInfo(const std::string &nodeUrl, t_blocksInfo &result)
 	return true;
 }
 
-static bool setCurrentWork(const Document &work, HashParams &hashParams) {
+static bool setCurrentWork(const Document &work, WorkParams &workParams) {
 	char buf[256];
 
 	// result[0], 32 bytes hex encoded current block header pow-hash
@@ -205,25 +205,25 @@ static bool setCurrentWork(const Document &work, HashParams &hashParams) {
 	}
 
 	// compute target
-	hashParams.target = resultArray[2];
+	workParams.target = resultArray[2];
 	mpz_t mpz_target;
-	decodeHex(hashParams.target.c_str(), mpz_target);
+	decodeHex(workParams.target.c_str(), mpz_target);
 	gmp_snprintf(buf, sizeof(buf), "%Zd", mpz_target);
-	hashParams.target.assign(buf);
+	workParams.target.assign(buf);
 
 	// compute difficulty
 	mpz_t mpz_difficulty;
 	computeDifficulty(mpz_target, mpz_difficulty);
 	gmp_snprintf(buf, sizeof(buf), "%Zd", mpz_difficulty);
-	hashParams.difficulty.assign(buf);
+	workParams.difficulty.assign(buf);
 
-	// store block header hash
-	hashParams.blockHeaderHash = resultArray[0];
+	// store work hash
+	workParams.hash = resultArray[0];
 
 	return true;
 }
 
-static bool updatePoolParams(const MiningConfig& config, HashParams &hashParams) 
+static bool updatePoolParams(const MiningConfig& config, WorkParams &workParams)
 {	
 	// get work
 	std::string getWorkResponse;
@@ -241,8 +241,8 @@ static bool updatePoolParams(const MiningConfig& config, HashParams &hashParams)
 		return false;
 	}
 
-	// update current hashParams with the work
-	if (!setCurrentWork(work, hashParams)) {
+	// update current work params with the new work
+	if (!setCurrentWork(work, workParams)) {
 		logLine(UPDATE_THREAD_LOG_PREFIX, "cannot parse getWork JSON (%s)", config.getWorkUrl.c_str());
 		return false;
 	}
@@ -250,23 +250,23 @@ static bool updatePoolParams(const MiningConfig& config, HashParams &hashParams)
 	return true;
 }
 
-HashParams currentHashParams() {
-	HashParams ret;
-	s_hashParams_mutex.lock();
+WorkParams currentWorkParams() {
+	WorkParams ret;
+	s_workParams_mutex.lock();
 	{
-		ret = s_hashParams;
+		ret = s_workParams;
 	}
-	s_hashParams_mutex.unlock();
+	s_workParams_mutex.unlock();
 	return ret;
 }
 
-// regularly polls the pool to get new HashParams when block changes
+// regularly polls the pool to get new WorkParams when block changes
 void updateThreadFn() {
 	auto tStart = high_resolution_clock::now();
 	uint32_t nHashes = getTotalHashes();
 
 	while (s_bUpdateThreadRun) {
-		HashParams newHashParams;
+		WorkParams newWork;
 
 		uint32_t nHashesNow = getTotalHashes();
 		auto tNow = high_resolution_clock::now();
@@ -274,20 +274,20 @@ void updateThreadFn() {
 		bool recomputeHashRate = false;
 
 		// call aqua_getWork on node / pool
-		bool ok = updatePoolParams(miningConfig(), newHashParams);
+		bool ok = updatePoolParams(miningConfig(), newWork);
 		if (!ok) {
 			logLine(UPDATE_THREAD_LOG_PREFIX, "problem getting new work, retrying in %.2fs",
 				miningConfig().refreshRateMs/1000.f);
 		}
 		else {
 			// we have new work (a new block)
-			if (s_hashParams.blockHeaderHash != newHashParams.blockHeaderHash) {
+			if (s_workParams.hash != newWork.hash) {
 				// update miner params, must be done first, as quick as possible
-				s_hashParams_mutex.lock();
+				s_workParams_mutex.lock();
 				{
-					s_hashParams = newHashParams;
+					s_workParams = newWork;
 				}
-				s_hashParams_mutex.unlock();
+				s_workParams_mutex.unlock();
 
 				// refresh latest/pending blocks info
 				bool hasFullNode = miningConfig().fullNodeUrl.size() > 0;
@@ -299,11 +299,11 @@ void updateThreadFn() {
 				char header[2048];
 				snprintf(header, sizeof(header), "New Work:\n\n- Work info -\n%-16s : %s\n%-16s : %s\n%-16s : %s\n",
 					"hash", 
-					newHashParams.blockHeaderHash.c_str(),
+					newWork.hash.c_str(),
 					miningConfig().soloMine ? "block difficulty" : "share difficulty",
-					newHashParams.difficulty.c_str(),
+					newWork.difficulty.c_str(),
 					miningConfig().soloMine ? "block target" : "share target",
-					newHashParams.target.c_str());
+					newWork.target.c_str());
 
 				char body[2048] = { 0 };
 				t_blocksInfo blocksInfo;

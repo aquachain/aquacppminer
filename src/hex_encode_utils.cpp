@@ -1,11 +1,32 @@
 #include "hex_encode_utils.h"
 
 #include <stdlib.h>
+#include <assert.h>
 
 std::string mpzToString(mpz_t num) {
 	char buf[64];
 	gmp_snprintf(buf, sizeof(buf), "%Zd", num);
 	return buf;
+}
+
+std::pair<bool, Bytes> hexToBytes(std::string s) {
+	Bytes res;
+	if (strncmp(s.c_str(), "0x", 2) == 0)
+		s = s.substr(2);
+
+	if ((s.size() & 1) != 0) {
+		return{ false, res };
+	}
+	for (size_t i = 0; i < s.size() / 2; i++) {
+		unsigned int v;
+		char n[3] = { s[i * 2], s[i * 2 + 1], 0 };
+		int nRead = sscanf(n, "%x", &v);
+		if (nRead != 1)
+			return{ false, res };
+		assert(v >= 0 && v <= 0xff);
+		res.push_back((byte)v);
+	}
+	return{ true, res };
 }
 
 void decodeHex(const char* encoded, mpz_t mpz_res) {

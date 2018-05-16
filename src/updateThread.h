@@ -5,4 +5,4 @@
 void startUpdateThread();
 void stopUpdateThread();
 
-HashParams currentHashParams();
+WorkParams currentWorkParams();

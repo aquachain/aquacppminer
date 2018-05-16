@@ -1,58 +1,57 @@
 #pragma once
 
+#include "hex_encode_utils.h"
+
 #include <stdint.h>
-
-#include <gmp.h>
-
 #include <string>
 #include <stdint.h>
+#include <gmp.h>
+#include <argon2.h>
 
-#include "tests.h"
+// argon2 params for aquachain
+const int AQUA_ARGON_MEM = 1;
+const int AQUA_ARGON_THREADS = 1;
+const int AQUA_ARGON_TIME = 1;
 
-// constants
-const uint32_t ARO_ARGON2I_ITERATIONS = 1;
-const uint32_t ARO_ARGON2I_MEMORY = 524288;
-const uint32_t ARO_ARGON2I_PARALLELISM = 1;
-const uint32_t ARO_ARGON2I_SALT_LEN = 16;
-const uint32_t ARO_ARGON2I_HASH_LEN = 32;
+// size of the hash that argon2i / argon2id will generate
+const uint32_t ARGON2_HASH_LEN = 32;
 
-extern const std::string MAX_BEST;
-
-struct HashParams {
+// current work
+struct WorkParams {
 	std::string difficulty = "";
 	std::string target = "";
-	std::string blockHeaderHash = "";
-	const HashReference* pRef = nullptr;
+	std::string hash = "";
 };
 
-struct HashTimings {
-	float argonTime = 0.f;
-	float totalTime = 0.f;
-};
-
-bool hash(const HashParams& p, mpz_t result, HashTimings* pTimings = nullptr);
+bool hash(const WorkParams& p, mpz_t result, uint64_t nonce);
 void startMinerThreads(int nThreads);
 void stopMinerThreads();
 
 uint32_t getTotalHashes();
-std::string getBestStr(uint32_t height);
+//std::string getBestStr(uint32_t height);
 uint32_t getTotalSharesSubmitted();
 uint32_t getTotalSharesAccepted();
 uint32_t getTotalBlocksAccepted();
 
-bool submit(
-	const std::string& poolUrl,
-	const std::string& argon,
-	const std::string& nonce,
-	const std::string& poolPublicKey,
-	const std::string& address,
-	uint32_t height,
-	const std::string& resultToTestVsNode = "");
-
-void makeNonce(std::string &nonceStr);
+//bool submit(
+//	const std::string& poolUrl,
+//	const std::string& argon,
+//	const std::string& nonce,
+//	const std::string& poolPublicKey,
+//	const std::string& address,
+//	uint32_t height,
+//	const std::string& resultToTestVsNode = "");
 
 void freeCurrentThreadMiningMemory();
 
-#include <gmp.h>
 void mpz_maxBest(mpz_t mpz_n);
 
+bool generateAquaSeed(
+	uint64_t nonce,
+	std::string workHashHex,
+	Bytes& seed);
+
+void setupAquaArgonCtx(
+	Argon2_Context &ctx,
+	const Bytes &seed,
+	uint8_t* outHashPtr);

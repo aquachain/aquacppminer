@@ -11,6 +11,7 @@
 #include "windows/procinfo_windows.h"
 #include "windows/win_tools.h"
 #endif
+#include "hex_encode_utils.h"
 
 #include <assert.h>
 #include <openssl/rand.h>
@@ -24,6 +25,8 @@
 #include <stdint.h>
 #include <cstring>
 #include <stdio.h>
+
+#include <argon2.h>
 
 //#ifndef _MSC_VER
 //#include <stdio.h>
@@ -80,7 +83,7 @@ int main(int argc, char** argv) {
 #endif
 
 	// welcome message
-	printf("AquaCppMiner %s %s%s%s\n(use -h for help, ctrl+c to quit)\n", 
+	printf("AquaCppMiner %s %s%s%s\n(use -h for help, ctrl+c to quit)\n",
 		VERSION.c_str(),
 		ARGON_ARCH.c_str(),
 		(ARGON_ARCH.size() > 0) ? " " : "",
@@ -156,22 +159,15 @@ int main(int argc, char** argv) {
 
 	// perform tests
 #if DO_TESTS
-	//std::string hasherLog;
-	//bool hasherTestsOk = testHasher(hasherLog);
-	//if (!hasherTestsOk) {
-	//	logLine(COORDINATOR_LOG_PREFIX, "Error: Hasher tests failed, see error below.");
-	//	s_run = false;
-	//}
-	//logLine(COORDINATOR_LOG_PREFIX, "%s", hasherLog.c_str());
+	if (!testAquaHashing()) {
+		logLine(COORDINATOR_LOG_PREFIX, "Error: Hashing tests failed !");
+		return 1;
+	}
 
-	//std::string submitLog;
-	//bool submitTestOk = testSubmit(submitLog);
-	//if (!submitTestOk) {
-	//	logLine(COORDINATOR_LOG_PREFIX, "Warning: Submit test failed, see message below");
-	//}
-	//logLine(COORDINATOR_LOG_PREFIX, "%s", submitLog.c_str());
 
+	
 	// free memory used for tests
+	#pragma message("TODO: free mem after tests ?") 
 	//freeCurrentThreadMiningMemory();
 #endif
 
@@ -193,17 +189,17 @@ int main(int argc, char** argv) {
 		auto nThreads = miningConfig().nThreads;
 		logLine(COORDINATOR_LOG_PREFIX, "--- Start %s mining ---",
 			miningConfig().soloMine ? "solo" : "pool");
-		logLine(COORDINATOR_LOG_PREFIX, 
-			"%-8s : %s", miningConfig().soloMine ? "node" : "pool", 
+		logLine(COORDINATOR_LOG_PREFIX,
+			"%-8s : %s", miningConfig().soloMine ? "node" : "pool",
 			miningConfig().getWorkUrl.c_str());
-		if (!miningConfig().soloMine && 
+		if (!miningConfig().soloMine &&
 			miningConfig().fullNodeUrl.size() > 0) {
-			logLine(COORDINATOR_LOG_PREFIX, "node url : %s", 
+			logLine(COORDINATOR_LOG_PREFIX, "node url : %s",
 				miningConfig().fullNodeUrl.c_str());
 		}
-		logLine(COORDINATOR_LOG_PREFIX,     "nthreads : %d", 
+		logLine(COORDINATOR_LOG_PREFIX, "nthreads : %d",
 			nThreads);
-		logLine(COORDINATOR_LOG_PREFIX,     "refresh  : %2.1fs", 
+		logLine(COORDINATOR_LOG_PREFIX, "refresh  : %2.1fs",
 			miningConfig().refreshRateMs / 1000.0f);
 		startMinerThreads(nThreads);
 	}
@@ -225,13 +221,14 @@ int main(int argc, char** argv) {
 			std::chrono::duration<float> durationSinceStart = tNow - tMiningStart;
 			float hashesPerSecondSinceStart = (float)nHashes / durationSinceStart.count();
 
-			logLine(COORDINATOR_LOG_PREFIX, "working...");
+			logLine(COORDINATOR_LOG_PREFIX, "working ... %.2f kH/s", 
+				hashesPerSecondSinceLast / 1000.f);
 
 			// log info
-			/*auto params = currentHashParams();
+			/*auto params = currentWorkParams();
 			std::string bestStr = getBestStr(params.height);
 			if (bestStr == MAX_BEST) {
-				bestStr = "N/A";
+			bestStr = "N/A";
 			}*/
 
 			//mpz_t mpz_poolLimit;

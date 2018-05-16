@@ -172,8 +172,95 @@ void logArgonErrorInfoAndExit(int res, const std::string &info) {
 	s_argonErrorMutex.unlock();
 }
 
-bool hash(const HashParams& p, mpz_t mpzResult, HashTimings* pTimings)
+bool generateAquaSeed(
+	uint64_t nonce,
+	std::string workHashHex,
+	Bytes& seed)
 {
+	const size_t AQUA_NONCE_OFFSET = 32;
+
+	seed.clear();
+
+	auto hashBytesRes = hexToBytes(workHashHex);
+	if (!hashBytesRes.first) {
+		assert(0);
+		return false;
+	}
+	if (hashBytesRes.second.size() != AQUA_NONCE_OFFSET) {
+		assert(0);
+		return false;
+	}
+
+	seed = hashBytesRes.second;
+	for (int i = 0; i < 8; i++) {
+		seed.push_back(byte(nonce >> (i * 8)) & 0xFF);
+	}
+
+	return true;
+}
+
+void setupAquaArgonCtx(
+	Argon2_Context &ctx,
+	const Bytes &seed,
+	uint8_t* outHashPtr)
+{	
+	memset(&ctx, 0, sizeof(Argon2_Context));
+	ctx.out = outHashPtr;
+	ctx.outlen = ARGON2_HASH_LEN;
+	ctx.pwd = const_cast<uint8_t*>(seed.data());
+	ctx.pwdlen = (uint32_t)seed.size();
+	ctx.salt = NULL;
+	ctx.saltlen = 0;
+	ctx.version = ARGON2_VERSION_NUMBER;
+	ctx.flags = ARGON2_DEFAULT_FLAGS;
+	ctx.t_cost = AQUA_ARGON_TIME;
+	ctx.m_cost = AQUA_ARGON_MEM;
+	ctx.lanes = ctx.threads = AQUA_ARGON_THREADS;
+}
+
+bool hash(const WorkParams& p, mpz_t mpzResult, uint64_t nonce, Argon2_Context &ctx)
+{
+	Bytes seed;
+	if (!generateAquaSeed(nonce, p.hash, seed)) {
+		assert(0);
+		return false;
+	}
+	
+	ctx.pwd = seed.data();
+	ctx.pwdlen = (uint32_t)seed.size();
+
+	// optimiser blake2 en utilisant : https://github.com/BLAKE2/BLAKE2 
+	// (blake2 est appellé lors de la création du hash initial)
+
+	int res = argon2_ctx(&ctx, Argon2_id);
+	if (res != ARGON2_OK) {
+		assert(0);
+		return false;
+	}
+
+	// TODO
+	//mpz_init_set_str(mpzResult, "0", 10);
+
+	//	// check difficulty of result
+	//	if new(big.Int).SetBytes(result.Bytes()).Cmp(target) <= 0 {
+	//		log.Print("valid nonce found (", nonce, ")\n")
+	//			blknonce : = types.EncodeNonce(nonce)
+	//			if offline{
+	//				continue
+	//			}
+	//				// submit the nonce, with the original job
+	//				if client.SubmitWork(ctx, blknonce, workHash, digest) {
+	//					log.Print("\n\n######\n\nGood Nonce!\n\n#####\n\n")
+	//				}
+	//				else {
+	//					// there was an error when we send the work. lets get a totally
+	//					// random nonce, instead of incrementing more
+	//					mrand.Seed(int64(nonce))
+	//						nonce = mrand.Uint64()
+	//				}
+	//	}
+	
+
 //	assert(p.nonce.size() > 0);
 //	assert(p.publicKey.size() > 0);
 //	assert(p.block.size() > 0);
@@ -372,56 +459,16 @@ bool hash(const HashParams& p, mpz_t mpzResult, HashTimings* pTimings)
 //	else {
 //		assert(p.pRef != nullptr);
 //	}
-//
-//	// handle tests
-//	if (p.pRef || p.compareResultToNode) {
-//		char resultStr[2048];
-//		gmp_sprintf(resultStr, "%Zd", mpzResult);
-//
-//		// user provided reference values
-//		if (p.pRef) {
-//			if (p.pRef->result != string(resultStr)) {
-//				return false;
-//			}
-//		}
-//
-//		// user asked to compare result to node (this is for testing)
-//		if (p.compareResultToNode) {
-//			bool ok = submit(
-//				config.poolUrl,
-//				string(base64Hash.data()),
-//				p.nonce,
-//				p.publicKey,
-//				config.address,
-//				p.height,
-//				resultStr);
-//			if (!ok)
-//				return false;
-//		}
-//	}
-//
-//	// finalize timings
-//	if (doTiming)
-//		tTotal.end(pTimings->totalTime);
+
 	return true;
 }
 
-void makeNonce(std::string &nonceStr) 
+uint64_t makeAquaNonce()
 {
-	//// default php miners has a variable size (~[41-43])
-	//const size_t NONCE_N_CHARS = 42;
-
-	//uint8_t r[NONCE_N_CHARS];
-	//auto res = RAND_bytes(r, NONCE_N_CHARS);
-	//assert(res == 1);
-
-	//char nonce[NONCE_N_CHARS + 1];
-	//for (int i = 0; i < NONCE_N_CHARS; i++) {
-	//	nonce[i] = B64_CHARS[r[i] % 62];
-	//}
-	//nonce[NONCE_N_CHARS] = 0;
-
-	//nonceStr.assign(nonce);
+	uint64_t nonce = 0;
+	auto ok = RAND_bytes((uint8_t*)&nonce, sizeof(nonce));
+	assert(ok == 1);
+	return nonce;
 }
 
 void minerThreadFn(int minerID) 
@@ -430,42 +477,31 @@ void minerThreadFn(int minerID)
 
 	while (s_bMinerThreadsRun) {
 		// get params for current block
-		HashParams newParams = currentHashParams();
+		WorkParams prms = currentWorkParams();
+
+		//
+		uint64_t nonce = makeAquaNonce();
+
+		//
+		Bytes dummySeed;
+		Argon2_Context ctx;
+		uint8_t argonHash[ARGON2_HASH_LEN];
+		setupAquaArgonCtx(ctx, dummySeed, argonHash);
 
 		// if params valid
-		if (newParams.blockHeaderHash.size() != 0) {
-			// sleep for now
-			std::this_thread::sleep_for(std::chrono::milliseconds(1));
-			
-			s_totalHashes++;
+		if (prms.hash.size() != 0) {
 
-//			// generate a nonce
-//			assert(newParams.nonce.size() == 0);
-//#if USE_UNIQUE_NONCE
-//			newParams.nonce = uniqueNonce;
-//#else
-//			makeNonce(newParams.nonce);
-//#endif
-//#ifdef TEST_CRASH_RAND_BYTES
-//			if ((rand() % 100000) == 0) {
-//				printf("dummy text1 => %s\n", newParams.nonce.c_str());
-//			}
-//			uint8_t salt[ARO_ARGON2I_SALT_LEN + 1];
-//			genPhpArgonSalt((char*)salt);
-//			if ((rand() % 100000) == 0) {
-//				printf("dummy text2 => %d\n", salt[0]);
-//			}
-//			continue;
-//#endif
-//			// hash
-//			mpz_t mpzResult;
-//			hash(newParams, mpzResult, nullptr);
-//			s_totalHashes++;
+			// hash
+			mpz_t mpzResult;
+			hash(prms, mpzResult, nonce, ctx);
+			s_totalHashes++;
+			nonce++;
+
 //#if DEBUG_MINER
 //			logLine(s_logPrefix, "%s %16s/%9s (height %u)",
 //				result.c_str(), 
-//				newParams.difficulty.c_str(),
-//				newParams.height);
+//				prms.difficulty.c_str(),
+//				prms.height);
 //#endif
 //			// update miner thread best result
 //			MinerInfo& info = s_minerThreadsInfo[minerID];
@@ -595,7 +631,7 @@ void stopMinerThreads()
 //	int nRetriesLeft = MAX_RETRIES;
 //	do {
 //		// check if we are still at the correct block height
-//		auto poolInfo = currentHashParams();
+//		auto poolInfo = currentWorkParams();
 //		if (poolInfo.height != height) {
 //			logLine(s_logPrefix, "Block was found before we could submit nonce.");
 //			break;
