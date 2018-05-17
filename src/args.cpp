@@ -35,7 +35,7 @@ std::pair<bool, uint32_t> parseRefreshRate(const std::string& refreshRateStr) {
 #ifdef _MSC_VER
 	int count = sscanf_s(refreshRateStr.c_str(), "%f%s", &refreshRate, unit, 8);
 #else
-	int count = sscanf_s(refreshRateStr.c_str(), "%f%s", &refreshRate, unit);
+	int count = sscanf(refreshRateStr.c_str(), "%f%s", &refreshRate, unit);
 #endif
 	if (count != 2 || (unit[0] != 'm' && unit[0] != 's')) {
 		return { false, 0 };
