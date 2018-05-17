@@ -35,7 +35,7 @@ const std::vector<std::string> HTTP_HEADER = {
 static bool s_bUpdateThreadRun = true;
 static std::mutex s_workParams_mutex;
 static WorkParams s_workParams;
-std::atomic<uint32_t> s_nodeReqId = 0;
+std::atomic<uint32_t> s_nodeReqId = { 0 };
 
 // target = 2 ^ 256 / difficulty
 void computeTarget(mpz_t mpz_difficulty, mpz_t &mpz_target) {
