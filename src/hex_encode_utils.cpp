@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <assert.h>
+#include <cstring>
 
 std::string mpzToString(mpz_t num) {
 	char buf[256]; // must be at least 64 (big numbers ...)
