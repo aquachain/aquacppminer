@@ -38,7 +38,7 @@ fi
 cp "bin/aquacppminer" "$OUT_DIR"
 cp "bin/aquacppminer_avx" "$OUT_DIR"
 cp "bin/aquacppminer_avx2" "$OUT_DIR"
-cp readme.md "$OUT_DIR/README_${VERSION_NUM}.txt"
+cp README.md "$OUT_DIR/README_${VERSION_NUM}.txt"
 
 # tar
 pushd "$OUT_DIR"
