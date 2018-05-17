@@ -15,4 +15,5 @@ openssl-1.1.0f-vs2015/
 *.diagsession
 change_*
 golang/debug
+golang/*.exe
 docs/

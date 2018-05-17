@@ -5,7 +5,9 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"math/big"
+	"time"
 
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/blake2b"
@@ -156,6 +158,11 @@ func printBytes(name string, data []byte) {
 	fmt.Printf("}\n")
 }
 
+func timeTrack(start time.Time, name string) {
+	elapsed := time.Since(start)
+	log.Printf("%s took %s", name, elapsed)
+}
+
 func main() {
 	////////////////////////////////////////////////////////////////////////////////////
 	var nonce uint64 = 5577006791947779410
@@ -195,8 +202,18 @@ func main() {
 	fmt.Printf("threads    : %d\n", argonThreads)
 	fmt.Printf("HashLength : %d\n", HashLength)
 
-	h0 := initHash(password, salt, secret, data, argonTime, argonMem, uint32(argonThreads), HashLength, argon2i)
+	// -- BENCHING BLAKE2B --
+/*	
+	var h0 [blake2b.Size + 8]byte
+	h0 = initHash(password, salt, secret, data, argonTime, argonMem, uint32(argonThreads), HashLength, argon2i)
 
+	{
+		defer timeTrack(time.Now(), "initHash")
+		for i := 0; i < 100*1000; i++ {
+			h0 = initHash(password, salt, secret, data, argonTime, argonMem, uint32(argonThreads), HashLength, argon2i)
+		}
+	}
+*/
 	fmt.Printf("- Output (H0) -\n")
 	printBytes("H0  :", h0[0:blake2b.Size])
 
@@ -209,6 +226,7 @@ func main() {
 	fmt.Printf("\n---Argon2id test---\n")
 	hashArgon2id := BytesToHash(argon2.IDKey(seedBuf.Bytes(), nil, 1, argonMem, argonThreads, HashLength))
 	printBytes("result: ", hashArgon2id.Bytes())
+	fmt.Printf("result as BigInt: %d\n", hashArgon2id.Big())
 
 	fmt.Printf("\n")
 }

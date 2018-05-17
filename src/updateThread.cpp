@@ -35,7 +35,7 @@ const std::vector<std::string> HTTP_HEADER = {
 static bool s_bUpdateThreadRun = true;
 static std::mutex s_workParams_mutex;
 static WorkParams s_workParams;
-static std::atomic<uint32_t> s_nodeReqId = 0;
+std::atomic<uint32_t> s_nodeReqId = 0;
 
 // target = 2 ^ 256 / difficulty
 void computeTarget(mpz_t mpz_difficulty, mpz_t &mpz_target) {
@@ -206,14 +206,13 @@ static bool setCurrentWork(const Document &work, WorkParams &workParams) {
 
 	// compute target
 	workParams.target = resultArray[2];
-	mpz_t mpz_target;
-	decodeHex(workParams.target.c_str(), mpz_target);
-	gmp_snprintf(buf, sizeof(buf), "%Zd", mpz_target);
+	decodeHex(workParams.target.c_str(), workParams.mpz_target);
+	gmp_snprintf(buf, sizeof(buf), "%Zd", workParams.mpz_target);
 	workParams.target.assign(buf);
 
 	// compute difficulty
 	mpz_t mpz_difficulty;
-	computeDifficulty(mpz_target, mpz_difficulty);
+	computeDifficulty(workParams.mpz_target, mpz_difficulty);
 	gmp_snprintf(buf, sizeof(buf), "%Zd", mpz_difficulty);
 	workParams.difficulty.assign(buf);
 
@@ -297,7 +296,7 @@ void updateThreadFn() {
 
 				// building log message
 				char header[2048];
-				snprintf(header, sizeof(header), "New Work:\n\n- Work info -\n%-16s : %s\n%-16s : %s\n%-16s : %s\n",
+				snprintf(header, sizeof(header), "New Pending block to mine:\n\n- Work info -\n%-16s : %s\n%-16s : %s\n%-16s : %s\n",
 					"hash", 
 					newWork.hash.c_str(),
 					miningConfig().soloMine ? "block difficulty" : "share difficulty",
@@ -316,7 +315,7 @@ void updateThreadFn() {
 							formatBlockInfo(blocksInfo.latest).c_str());
 					}
 					auto n = strlen(body);
-					snprintf(body + n, sizeof(body) - n, "- Pending block (not yet found) -\n%s\n",
+					snprintf(body + n, sizeof(body) - n, "- Pending block -\n%s\n",
 						formatBlockInfo(blocksInfo.pending).c_str());
 				}
 				

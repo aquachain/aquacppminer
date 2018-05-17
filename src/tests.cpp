@@ -1,6 +1,7 @@
 #include "miner.h"
 #include "tests.h"
 #include "hex_encode_utils.h"
+#include "timer.h"
 
 #include "../phc-winner-argon2/src/core.h"
 
@@ -164,10 +165,81 @@ bool testAquaHashing() {
 		return false;
 	}
 
+	// test conversion of the result to a mpz
+	mpz_t mpz_res;
+	mpz_fromBytes(ctx.out, ctx.outlen, mpz_res);
+	std::string resStr = mpzToString(mpz_res);
+	const auto REF_RESULT = "95686644483052782493399538392398490716806085897040757836786893807315762738410";
+	if (resStr != REF_RESULT) {
+		printf("Error: mpz_fromBytes test failed");
+		return false;
+	}
+
 #if VERBOSE_TESTS
 	printBytes("result: ", ctx.out, ctx.outlen);
 	printf("\n---- testAquaHashing() OK ----\n\n");
 #endif
 	
+	// - mpz_import bench
+	const bool BENCH_MPZ_IMPORT = false;
+	if (BENCH_MPZ_IMPORT)
+	{
+		Timer tTotal;
+		float durationS;
+		const int N_ITER = 10000 * 1000;
+
+		// 1: 2131, 2098
+		// 2/4/8: ~1950
+		tTotal.start();
+		{
+			mpz_t mpz_res;
+			for (int i = 0; i < N_ITER; i++) {
+				mpz_fromBytes(ctx.out, ctx.outlen, mpz_res);
+			}
+		}
+		tTotal.end(durationS);
+		printf("mpz_fromBytes took %.2fms\n", durationS*1000.f);
+
+		// 1: 714, 702
+		// 2/4/8: ~550
+		tTotal.start();
+		{
+			mpz_t mpz_res;
+			mpz_init(mpz_res);
+			for (int i = 0; i < N_ITER; i++) {
+				mpz_fromBytesNoInit(ctx.out, ctx.outlen, mpz_res);
+			}		
+		}
+		tTotal.end(durationS);
+		printf("mpz_fromBytesNoInit took %.2fms\n", durationS*1000.f); 
+	}
+
+
+	// - Blake2b bench
+	const bool BENCH_BLAKE2B = false;
+	//https://www.cryptologie.net/article/406/simd-instructions-in-go/
+
+	if (BENCH_BLAKE2B)
+	{		
+/*		
+		Timer tTotal;
+		tTotal.start();
+		Bytes seed;
+		generateAquaSeed(NONCE, WORK_HASH_HEX, seed);
+
+		Argon2_Context ctx;
+		uint8_t rawHash[ARGON2_HASH_LEN];
+		setupAquaArgonCtx(ctx, seed, rawHash);
+
+		uint8_t blockhash[ARGON2_PREHASH_SEED_LENGTH];
+		for (int i = 0; i < 100 * 1000; i++) {
+			initial_hash(blockhash, &ctx, Argon2_i);
+		}
+		float durationMs = 0;
+		tTotal.end(durationMs);
+		printf("=====>%.2fsms", durationMs*1000.f);
+*/
+	}
+
 	return true;
 }

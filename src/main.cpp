@@ -54,7 +54,7 @@ const std::string ARGON_ARCH = "";
 using std::chrono::high_resolution_clock;
 
 const char* COORDINATOR_LOG_PREFIX = "MAIN";
-const std::string VERSION = "0.1";
+const std::string VERSION = "0.1.2";
 
 bool s_needKeyPressAtEnd = false;
 bool s_run = true;
@@ -164,11 +164,8 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-
-	
-	// free memory used for tests
-	#pragma message("TODO: free mem after tests ?") 
-	//freeCurrentThreadMiningMemory();
+	// free any memory used for tests
+	freeCurrentThreadMiningMemory();
 #endif
 
 	// auto detect number of threads if not specified
@@ -221,8 +218,11 @@ int main(int argc, char** argv) {
 			std::chrono::duration<float> durationSinceStart = tNow - tMiningStart;
 			float hashesPerSecondSinceStart = (float)nHashes / durationSinceStart.count();
 
-			logLine(COORDINATOR_LOG_PREFIX, "working ... %.2f kH/s", 
-				hashesPerSecondSinceLast / 1000.f);
+			logLine(COORDINATOR_LOG_PREFIX, "%d threads | %6.2f kH/s | Shares=%5lu Rejected=%5lu", 
+				miningConfig().nThreads,
+				hashesPerSecondSinceLast / 1000.f,
+				getTotalSharesAccepted(),
+				getTotalSharesSubmitted() - getTotalSharesAccepted());
 
 			// log info
 			/*auto params = currentWorkParams();

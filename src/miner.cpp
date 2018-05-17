@@ -42,6 +42,7 @@ struct MinerInfo {
 	uint32_t height = 0;
 };
 
+// atomics shared by miner threads
 static std::vector<std::thread*> s_minerThreads;
 static std::vector<MinerInfo> s_minerThreadsInfo;
 static std::atomic<uint32_t> s_totalHashes(0);
@@ -50,6 +51,17 @@ static std::atomic<uint32_t> s_nBlocksFound(0);
 static std::atomic<uint32_t> s_nSharesFound(0);
 static std::atomic<uint32_t> s_nSharesAccepted(0);
 
+// use same atomic for miners and update thread http request ID
+extern std::atomic<uint32_t> s_nodeReqId;
+
+// TLS storage for miner thread
+thread_local Argon2_Context s_ctx;
+thread_local Bytes s_seed;
+thread_local uint64_t s_nonce = 0;
+thread_local uint8_t s_argonHash[ARGON2_HASH_LEN] = { 0 };
+#pragma message("TODO: what size to use here ?")
+thread_local char s_currentWorkHash[256] = { 0 };
+thread_local char s_submitParams[512] = { 0 };
 thread_local char s_logPrefix[32] = "MAIN";
 
 void mpz_maxBest(mpz_t mpz_n) {
@@ -111,7 +123,7 @@ uint32_t getTotalBlocksAccepted()
 //	return heightStr(mpzBest);
 //}
 
-#define USE_CUSTOM_ALLOCATOR (0)
+#define USE_CUSTOM_ALLOCATOR (1)
 #if USE_CUSTOM_ALLOCATOR
 std::map<std::thread::id, uint8_t *> threadBlocks;
 
@@ -179,14 +191,14 @@ bool generateAquaSeed(
 {
 	const size_t AQUA_NONCE_OFFSET = 32;
 
-	seed.clear();
-
 	auto hashBytesRes = hexToBytes(workHashHex);
 	if (!hashBytesRes.first) {
+		seed.clear();
 		assert(0);
 		return false;
 	}
 	if (hashBytesRes.second.size() != AQUA_NONCE_OFFSET) {
+		seed.clear();
 		assert(0);
 		return false;
 	}
@@ -199,6 +211,16 @@ bool generateAquaSeed(
 	return true;
 }
 
+void updateAquaSeed(
+	uint64_t nonce,
+	Bytes& seed)
+{
+	const size_t AQUA_NONCE_OFFSET = 32;
+	for (int i = 0; i < 8; i++) {
+		seed[AQUA_NONCE_OFFSET + i] = byte(nonce >> (i * 8)) & 0xFF;
+	}
+}
+
 void setupAquaArgonCtx(
 	Argon2_Context &ctx,
 	const Bytes &seed,
@@ -208,7 +230,8 @@ void setupAquaArgonCtx(
 	ctx.out = outHashPtr;
 	ctx.outlen = ARGON2_HASH_LEN;
 	ctx.pwd = const_cast<uint8_t*>(seed.data());
-	ctx.pwdlen = (uint32_t)seed.size();
+	assert(seed.size() == 40);
+	ctx.pwdlen = 40;
 	ctx.salt = NULL;
 	ctx.saltlen = 0;
 	ctx.version = ARGON2_VERSION_NUMBER;
@@ -216,202 +239,66 @@ void setupAquaArgonCtx(
 	ctx.t_cost = AQUA_ARGON_TIME;
 	ctx.m_cost = AQUA_ARGON_MEM;
 	ctx.lanes = ctx.threads = AQUA_ARGON_THREADS;
+#if USE_CUSTOM_ALLOCATOR
+	ctx.allocate_cbk = myAlloc;
+	ctx.free_cbk = myFree;
+#endif
 }
 
-bool hash(const WorkParams& p, mpz_t mpzResult, uint64_t nonce, Argon2_Context &ctx)
+bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context &ctx)
 {
-	Bytes seed;
-	if (!generateAquaSeed(nonce, p.hash, seed)) {
-		assert(0);
-		return false;
-	}
+	#pragma message("TODO: optimize blake2 : https://github.com/BLAKE2/BLAKE2")
 	
-	ctx.pwd = seed.data();
-	ctx.pwdlen = (uint32_t)seed.size();
+	// update the seed with the new nonce
+	updateAquaSeed(nonce, s_seed);
 
-	// optimiser blake2 en utilisant : https://github.com/BLAKE2/BLAKE2 
-	// (blake2 est appellé lors de la création du hash initial)
-
+	// argon hash
 	int res = argon2_ctx(&ctx, Argon2_id);
 	if (res != ARGON2_OK) {
 		assert(0);
 		return false;
 	}
 
-	// TODO
-	//mpz_init_set_str(mpzResult, "0", 10);
+	// convert hash to a mpz (big int)
+	mpz_fromBytesNoInit(ctx.out, ctx.outlen, mpz_result);
 
-	//	// check difficulty of result
-	//	if new(big.Int).SetBytes(result.Bytes()).Cmp(target) <= 0 {
-	//		log.Print("valid nonce found (", nonce, ")\n")
-	//			blknonce : = types.EncodeNonce(nonce)
-	//			if offline{
-	//				continue
-	//			}
-	//				// submit the nonce, with the original job
-	//				if client.SubmitWork(ctx, blknonce, workHash, digest) {
-	//					log.Print("\n\n######\n\nGood Nonce!\n\n#####\n\n")
-	//				}
-	//				else {
-	//					// there was an error when we send the work. lets get a totally
-	//					// random nonce, instead of incrementing more
-	//					mrand.Seed(int64(nonce))
-	//						nonce = mrand.Uint64()
-	//				}
-	//	}
-	
+	// compare to target
+	if (mpz_cmp(mpz_result, p.mpz_target) < 0) {
+		// submit share
+		snprintf(
+			s_submitParams,
+			sizeof(s_submitParams),
+			"{\"jsonrpc\":\"2.0\", \"id\" : %d, \"method\" : \"aqua_submitWork\", "
+			"\"params\" : [\"0x%" PRIx64 "\",\"%s\",\"0x0000000000000000000000000000000000000000000000000000000000000000\"]}",
+			++s_nodeReqId,
+			s_nonce,
+			p.hash.c_str());
 
-//	assert(p.nonce.size() > 0);
-//	assert(p.publicKey.size() > 0);
-//	assert(p.block.size() > 0);
-//	assert(p.difficulty.size() > 0);
-//
-//	// get global parameters
-//	auto config = miningConfig();
-//
-//	// set result to 0 by default
-//	mpz_init(mpzResult);
-//
-//	// init timing stuff
-//	Timer tTotal, tArgon;
-//	bool doTiming = pTimings != nullptr;
-//	if (doTiming)
-//		tTotal.start();
-//
-//	// construct base pwd
-//	string pwd;
-//	pwd.reserve(1024);
-//	pwd.append(p.publicKey).append("-").append(p.nonce).append("-").append(p.block).append("-").append(p.difficulty);
-//	assert(pwd.size() <= 1024);
-//
-//	// generate a salt (raw bytes) for Argon2i
-//	uint8_t salt[ARO_ARGON2I_SALT_LEN + 1];
-//#ifdef _DEBUG
-//	memset(salt, 0, sizeof(salt));
-//#endif
-//	if (p.pRef) {
-//		// testing, use provided salt
-//		string salt64 = p.pRef->getSaltBase64();
-//		size_t saltLen = salt64.size();
-//		from_base64(salt, &saltLen, salt64.c_str());
-//		assert(saltLen == ARO_ARGON2I_SALT_LEN);
-//	}
-//	else {
-//		// real mining, generate salt like PHP does
-//		genPhpArgonSalt((char*)salt);
-//	}
-//	for (int i = 0; i < ARO_ARGON2I_SALT_LEN; i++) {
-//		assert(salt[i] != 0);
-//	}
-//
-//	// buffers that will hold the raw and encoded hashes
-//	uint8_t rawHash[ARO_ARGON2I_HASH_LEN];
-//	size_t base64HashLen = argon2_encodedlen(ARO_ARGON2I_ITERATIONS, ARO_ARGON2I_MEMORY, ARO_ARGON2I_PARALLELISM, ARO_ARGON2I_SALT_LEN, ARO_ARGON2I_HASH_LEN, Argon2_i);
-//	std::vector<char> base64Hash(base64HashLen);
-//
-//	// setup argon2i
-//	Argon2_Context ctx;
-//	memset(&ctx, 0, sizeof(Argon2_Context));
-//	ctx.out = rawHash;
-//	ctx.outlen = ARO_ARGON2I_HASH_LEN;
-//	ctx.pwd = (uint8_t*)pwd.c_str();
-//	ctx.pwdlen = (uint32_t)pwd.size();
-//	ctx.salt = salt;
-//	ctx.saltlen = ARO_ARGON2I_SALT_LEN;
-//	ctx.version = ARGON2_VERSION_NUMBER;
-//	ctx.flags = ARGON2_DEFAULT_FLAGS;
-//
-//	ctx.t_cost = ARO_ARGON2I_ITERATIONS;
-//	ctx.m_cost = ARO_ARGON2I_MEMORY;
-//	// cf argon2.c L75:
-//	//		if (instance.threads > instance.lanes)
-//	//			instance.threads = instance.lanes;
-//	// so not usefull trying to set different values for lanes & threads
-//	ctx.lanes = ARO_ARGON2I_PARALLELISM;
-//	ctx.threads = ARO_ARGON2I_PARALLELISM;
-//
-//#if USE_CUSTOM_ALLOCATOR
-//	ctx.allocate_cbk = myAlloc;
-//	ctx.free_cbk = myFree;
-//#endif
-//
-//	// hash the password with argon2i and encode it to base64
-//	if (doTiming)
-//		tArgon.start();
-//	{
-//		int res = argon2_ctx(&ctx, Argon2_i);
-//		if (res != ARGON2_OK) {
-//			logArgonErrorInfoAndExit(res, "argon2_ctx");
-//			return false;
-//		}
-//		res = encode_string(base64Hash.data(), base64HashLen, &ctx, Argon2_i);
-//		if (res != ARGON2_OK) {
-//			logArgonErrorInfoAndExit(res, "encode_string");
-//			return false;
-//		}
-//	}
-//	if (doTiming)
-//		tArgon.end(pTimings->argonTime);
-//
-//	// concatenate base & pwdHash
-//	char toHash[4096];
-//	strcpy(toHash, pwd.c_str());
-//	strcat(toHash, base64Hash.data());
-//
-//	// apply 6 rounds of SHA512 via OpenSSL
-//	unsigned char curHash[SHA512_DIGEST_LENGTH];
-//	SHA512((unsigned char*)toHash, strlen(toHash), (unsigned char*)&curHash);
-//	for (int i = 0; i < 5; i++) {
-//		unsigned char newHash[SHA512_DIGEST_LENGTH];
-//		SHA512((unsigned char*)curHash, SHA512_DIGEST_LENGTH, (unsigned char*)newHash);
-//		std::memcpy(curHash, newHash, SHA512_DIGEST_LENGTH);
-//	}
-//
-//	// extract 8 specific bytes from hash to build duration string
-//	char durationStr[1024];
-//	size_t indices[8] = { 10, 15, 20, 23, 31, 40, 45, 55 };
-//	char *pS = durationStr;
-//	for (int i = 0; i < sizeof(indices) / sizeof(indices[0]); i++) {
-//		pS += sprintf(pS, "%d", curHash[indices[i]]);
-//	}
-//	*pS = 0;
-//
-//	// trim duration string leading zeros
-//	char *durationStrFinal = durationStr;
-//	while (*durationStrFinal == '0')
-//		durationStrFinal++;
-//
-//	// check for failure if asked
-//	if (p.pRef) {
-//		if (p.pRef->argon2i != string(base64Hash.data())) {
-//			return false;
-//		}
-//		char hashHex[SHA512_DIGEST_LENGTH * 2 + 1];
-//		memset(hashHex, 0, sizeof(hashHex));
-//		char* pS = hashHex;
-//		for (int i = 0; i < SHA512_DIGEST_LENGTH; i++) {
-//			pS += sprintf(pS, "%02x", curHash[i]);
-//		}
-//		*pS = 0;
-//		if (p.pRef->finalHash != string(hashHex)) {
-//			return false;
-//		}
-//		if (p.pRef->duration != string(durationStrFinal)) {
-//			return false;
-//		}
-//	}
-//
-//	// divide duration by difficulty to get final quotient string
-//	mpz_t mpzDiff, mpzDuration;
-//	mpz_init_set_str(mpzDiff, p.difficulty.c_str(), 10);
-//	mpz_init_set_str(mpzDuration, durationStrFinal, 10);
-//	mpz_tdiv_q(mpzResult, mpzDuration, mpzDiff);
-//	
-//	if (p.limit > 0) {
-//		mpz_t mpzLimit, mpzBlockLimit;
-//		mpz_init_set_ui(mpzLimit, p.limit);
-//		mpz_init_set_ui(mpzBlockLimit, (uint32_t)240);
-//
+		const std::vector<std::string> HTTP_HEADER = {
+			"Accept: application/json",
+			"Content-Type: application/json"
+		};
+
+		std::string response;
+		httpPost(
+			miningConfig().submitWorkUrl.c_str(),
+			s_submitParams, response, &HTTP_HEADER);
+
+		if (response.find("\"result\":true") != std::string::npos) {
+			logLine(s_logPrefix, "Found share !");
+			s_nSharesAccepted++;
+		}
+		else {
+			logLine(s_logPrefix, "\n\n!!!Rejected Share !!!\n--server response:--\n%s\n",
+				response.c_str());
+		}
+		s_nSharesFound++;
+	}
+
+	#pragma message("check about this comment in go code")
+	// there was an error when we send the work. lets get a totally
+	// random nonce, instead of incrementing more
+
 //		// check if result < limit
 //		if (mpz_cmp(mpzResult, mpzLimit) < 0) {
 //			// we found a share or block, submit it asap
@@ -475,34 +362,46 @@ void minerThreadFn(int minerID)
 {
 	snprintf(s_logPrefix, sizeof(s_logPrefix), "MN%02d", minerID);
 
+	// init thread TLS variables that need it
+	s_seed.resize(40, 0);
+	setupAquaArgonCtx(s_ctx, s_seed, s_argonHash);
+
+	// init mpz that will hold result
+	// initialization is pretty costly, so should stay here, done only one time
+	// (actual value of mpzResult is set by mpz_fromBytesNoInit inside hash() func)
+	mpz_t mpz_result;
+	mpz_init(mpz_result);
+
 	while (s_bMinerThreadsRun) {
 		// get params for current block
 		WorkParams prms = currentWorkParams();
 
-		//
-		uint64_t nonce = makeAquaNonce();
-
-		//
-		Bytes dummySeed;
-		Argon2_Context ctx;
-		uint8_t argonHash[ARGON2_HASH_LEN];
-		setupAquaArgonCtx(ctx, dummySeed, argonHash);
-
 		// if params valid
 		if (prms.hash.size() != 0) {
+			// check if work hash has changed
+			if (strcmp(prms.hash.c_str(), s_currentWorkHash)) {
+				// generate the TLS nonce & seed nonce again
+				s_nonce = makeAquaNonce();
+				generateAquaSeed(s_nonce, prms.hash, s_seed);
+				// save current hash in TLS
+				strcpy(s_currentWorkHash, prms.hash.c_str());
+			}
+			else {
+				// only inc the TLS nonce
+				s_nonce++;
+			}
 
 			// hash
-			mpz_t mpzResult;
-			hash(prms, mpzResult, nonce, ctx);
-			s_totalHashes++;
-			nonce++;
+			bool hashOk = hash(prms, mpz_result, s_nonce, s_ctx);
+			if (hashOk) {
+				s_nonce++;
+				s_totalHashes++;
+			}
+			else {
+				assert(0);
+				printf("hash failed !\n");
+			}
 
-//#if DEBUG_MINER
-//			logLine(s_logPrefix, "%s %16s/%9s (height %u)",
-//				result.c_str(), 
-//				prms.difficulty.c_str(),
-//				prms.height);
-//#endif
 //			// update miner thread best result
 //			MinerInfo& info = s_minerThreadsInfo[minerID];
 //			if (info.height != newParams.height) {
@@ -517,15 +416,6 @@ void minerThreadFn(int minerID)
 //			logLine(s_logPrefix, "no valid mining Params, waiting 3s before retrying");
 //			std::this_thread::sleep_for(std::chrono::milliseconds(3 * 1000));
 //		}
-//		
-//		// handle relax mode
-//		if (relaxMode) {
-//			auto nowT = high_resolution_clock::now();
-//			auto elapsed = nowT - lastPauseT;
-//			if (elapsed.count() > RELAX_MODE_SLEEP_INTERVAL_SECONDS) {
-//				std::this_thread::sleep_for(std::chrono::milliseconds(RELAX_MODE_SLEEP_DURATION_MS));
-//			}
-//			lastPauseT = high_resolution_clock::now();
 		}
 	}
 	freeCurrentThreadMiningMemory();

@@ -4,8 +4,9 @@
 #include <assert.h>
 
 std::string mpzToString(mpz_t num) {
-	char buf[64];
-	gmp_snprintf(buf, sizeof(buf), "%Zd", num);
+	char buf[256]; // must be at least 64 (big numbers ...)
+	auto ret = gmp_snprintf(buf, sizeof(buf), "%Zd", num);
+	assert(ret < sizeof(buf));
 	return buf;
 }
 

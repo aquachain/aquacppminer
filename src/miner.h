@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <gmp.h>
 #include <argon2.h>
+#include <assert.h>
 
 // argon2 params for aquachain
 const int AQUA_ARGON_MEM = 1;
@@ -21,9 +22,9 @@ struct WorkParams {
 	std::string difficulty = "";
 	std::string target = "";
 	std::string hash = "";
+	mpz_t mpz_target;
 };
 
-bool hash(const WorkParams& p, mpz_t result, uint64_t nonce);
 void startMinerThreads(int nThreads);
 void stopMinerThreads();
 
@@ -55,3 +56,16 @@ void setupAquaArgonCtx(
 	Argon2_Context &ctx,
 	const Bytes &seed,
 	uint8_t* outHashPtr);
+
+inline void mpz_fromBytesNoInit(uint8_t* bytes, size_t count, mpz_t mpz_result) {
+	const int ORDER = 1;
+	const int ENDIAN = 1;
+	assert(count % 4 == 0);
+	mpz_import(mpz_result, count>>2, ORDER, 4, ENDIAN, 0, bytes);
+}
+
+inline void mpz_fromBytes(uint8_t* bytes, size_t count, mpz_t mpz_result) {
+	mpz_init(mpz_result); // must init before import
+	mpz_fromBytesNoInit(bytes, count, mpz_result);
+}
+
