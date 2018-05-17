@@ -285,11 +285,12 @@ bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context 
 			s_submitParams, response, &HTTP_HEADER);
 
 		if (response.find("\"result\":true") != std::string::npos) {
-			logLine(s_logPrefix, "Found share !");
+			logLine(s_logPrefix, miningConfig().soloMine ? "Found block !" : "Found share !");
 			s_nSharesAccepted++;
 		}
 		else {
-			logLine(s_logPrefix, "\n\n!!!Rejected Share !!!\n--server response:--\n%s\n",
+			logLine(s_logPrefix, "\n\n!!! Rejected %s !!!\n--server response:--\n%s\n",
+				miningConfig().soloMine ? "block" : "share",
 				response.c_str());
 		}
 		s_nSharesFound++;

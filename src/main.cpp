@@ -218,9 +218,10 @@ int main(int argc, char** argv) {
 			std::chrono::duration<float> durationSinceStart = tNow - tMiningStart;
 			float hashesPerSecondSinceStart = (float)nHashes / durationSinceStart.count();
 
-			logLine(COORDINATOR_LOG_PREFIX, "%d threads | %6.2f kH/s | Shares=%5lu Rejected=%5lu", 
+			logLine(COORDINATOR_LOG_PREFIX, "%d threads | %6.2f kH/s | %s=%5lu Rejected=%5lu", 
 				miningConfig().nThreads,
 				hashesPerSecondSinceLast / 1000.f,
+				miningConfig().soloMine ? "Blocks" : "Shares",
 				getTotalSharesAccepted(),
 				getTotalSharesSubmitted() - getTotalSharesAccepted());
 
