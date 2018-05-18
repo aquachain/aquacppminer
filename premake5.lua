@@ -128,6 +128,8 @@ workspace "aquacppminer"
 			"phc-winner-argon2/src/thread.*",
 			"*.sh",
 			"scripts_win/*.sh",
+			"scripts_linux/*.sh",
+			"scripts_mac/*.sh",
 			"premake5.lua",
 			"*.md"
 		}

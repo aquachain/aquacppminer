@@ -29,7 +29,7 @@ void printBytes2(uint8_t* b, size_t count) {
 }
 
 bool equal(const uint8_t* x, const uint8_t* y, size_t len) {
-	for (int i = 0; i < len; i++) {
+	for (size_t i = 0; i < len; i++) {
 		if (x[i] != y[i]) {
 			return false;
 		}
