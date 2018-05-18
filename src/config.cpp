@@ -56,7 +56,7 @@ bool loadConfigFile(std::string& log) {
 			log = "not enough lines";
 			return false;
 		}
-		if (i != FULLNODE_URL && (params[i]) <= 0) {
+		if (i != FULLNODE_URL && (params[i] == nullptr)) {
 			log = "empty param";
 			return false;
 		}
