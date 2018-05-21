@@ -134,6 +134,9 @@ int myAlloc(uint8_t **memory, size_t bytes_to_allocate)
 	auto it = threadBlocks.find(tId);
 	if (it == threadBlocks.end()) {
 		threadBlocks[tId] = (uint8_t *)malloc(bytes_to_allocate);
+		if (!threadBlocks[tId]) {
+			logLine(s_logPrefix, "Error: myAlloc failed after requested %.2fMB", bytes_to_allocate/1024.f);
+		}
 	}
 	*memory = threadBlocks[tId];
 #else
@@ -276,6 +279,7 @@ bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context 
 	// argon hash
 	int res = argon2_ctx(&ctx, Argon2_id);
 	if (res != ARGON2_OK) {
+		logLine(s_logPrefix, "Error: argon2 failed with code %d", res);
 		assert(0);
 		return false;
 	}
