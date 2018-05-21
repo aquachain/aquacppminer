@@ -77,6 +77,9 @@ thread_local int s_minerThreadID = { -1 };
 thread_local char s_currentWorkHash[256] = { 0 };
 thread_local char s_logPrefix[32] = "MAIN";
 
+// need to be able to stop main loop from miner threads
+extern bool s_run;
+
 void mpz_maxBest(mpz_t mpz_n) {
 	mpz_t mpz_two, mpz_exponent;
 	mpz_init_set_str(mpz_two, "2", 10);
@@ -124,7 +127,8 @@ uint32_t getTotalBlocksAccepted()
 
 #define USE_CUSTOM_ALLOCATOR (1)
 #if USE_CUSTOM_ALLOCATOR
-std::map<std::thread::id, uint8_t *> threadBlocks;
+static std::mutex s_alloc_mutex;
+std::map<std::thread::id, uint8_t*> threadBlocks;
 
 #define USE_STATIC_BLOCKS (1)
 int myAlloc(uint8_t **memory, size_t bytes_to_allocate)
@@ -133,17 +137,21 @@ int myAlloc(uint8_t **memory, size_t bytes_to_allocate)
 #if USE_STATIC_BLOCKS
 	auto it = threadBlocks.find(tId);
 	if (it == threadBlocks.end()) {
-		threadBlocks[tId] = (uint8_t *)malloc(bytes_to_allocate);
-		if (!threadBlocks[tId]) {
-			logLine(s_logPrefix, "Error: myAlloc failed after requested %.2fMB", bytes_to_allocate/1024.f);
+		s_alloc_mutex.lock();
+		{
+			threadBlocks[tId] = (uint8_t *)malloc(bytes_to_allocate);
 		}
+		*memory = threadBlocks[tId];
+		s_alloc_mutex.unlock();
 	}
-	*memory = threadBlocks[tId];
+	else {
+		*memory = threadBlocks[tId];
+	}
 #else
 	*memory = (uint8_t *)malloc(bytes_to_allocate);
 #endif
 	assert(*memory);
-	return *memory != 0;
+	return *memory != nullptr;
 }
 
 void myFree(uint8_t *memory, size_t bytes_to_allocate)
@@ -372,7 +380,9 @@ void minerThreadFn(int minerID)
 			}
 			else {
 				assert(0);
-				printf("hash failed !\n");
+				logLine(s_logPrefix, "FATAL ERROR: hash failed !");
+				s_bMinerThreadsRun = false;
+				s_run = false;
 			}
 		}
 	}
