@@ -52,7 +52,7 @@ const std::string ARGON_ARCH = "";
 using std::chrono::high_resolution_clock;
 
 const char* COORDINATOR_LOG_PREFIX = "MAIN";
-const std::string VERSION = "0.1.2";
+const std::string VERSION = "0.2.1";
 
 bool s_needKeyPressAtEnd = false;
 bool s_run = true;
@@ -216,12 +216,16 @@ int main(int argc, char** argv) {
 			std::chrono::duration<float> durationSinceStart = tNow - tMiningStart;
 			float hashesPerSecondSinceStart = (float)nHashes / durationSinceStart.count();
 
-			logLine(COORDINATOR_LOG_PREFIX, "%d threads | %6.2f kH/s | %s=%5lu Rejected=%5lu", 
+			auto nSharesSubmitted = getTotalSharesSubmitted();
+			auto nSharesAccepted = getTotalSharesAccepted();
+			auto nSharesRejected = nSharesSubmitted - nSharesAccepted;
+			logLine(COORDINATOR_LOG_PREFIX, "%d threads | %6.2f kH/s | %s=%5lu Rejected=%5lu (%4.1f%%)", 
 				miningConfig().nThreads,
 				hashesPerSecondSinceLast / 1000.f,
 				miningConfig().soloMine ? "Blocks" : "Shares",
-				getTotalSharesAccepted(),
-				getTotalSharesSubmitted() - getTotalSharesAccepted());
+				nSharesAccepted,
+				nSharesRejected,
+				(nSharesSubmitted == 0) ? 0. : (100. * ((double)nSharesRejected / (double)nSharesSubmitted)));
 		}
 		const uint32_t REPORT_INTERVAL_MS = 5 * 1000;
 		std::this_thread::sleep_for(std::chrono::milliseconds(REPORT_INTERVAL_MS));
