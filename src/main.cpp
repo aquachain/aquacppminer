@@ -38,6 +38,14 @@
 //#define kbhit _kbhit
 //#endif
 
+#ifdef _MSC_VER
+	// need to add those libs for windows static linking
+	#pragma comment (lib, "crypt32")
+	#pragma comment (lib, "Ws2_32")
+	#pragma comment (lib, "Wldap32")
+	#pragma comment (lib, "Normaliz")
+#endif
+
 #if defined(__AVX2__)
 #pragma message("--- AVX2")
 const std::string ARGON_ARCH = "AVX2";
