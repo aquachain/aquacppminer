@@ -28,16 +28,6 @@
 
 #include <argon2.h>
 
-//#ifndef _MSC_VER
-//#include <stdio.h>
-//#include <termios.h>
-//#include <unistd.h>
-//#include <fcntl.h>
-//#else
-//#include <conio.h>
-//#define kbhit _kbhit
-//#endif
-
 #ifdef _MSC_VER
 	// need to add those libs for windows static linking
 	#pragma comment (lib, "crypt32")
@@ -232,31 +222,6 @@ int main(int argc, char** argv) {
 				miningConfig().soloMine ? "Blocks" : "Shares",
 				getTotalSharesAccepted(),
 				getTotalSharesSubmitted() - getTotalSharesAccepted());
-
-			// log info
-			/*auto params = currentWorkParams();
-			std::string bestStr = getBestStr(params.height);
-			if (bestStr == MAX_BEST) {
-			bestStr = "N/A";
-			}*/
-
-			//mpz_t mpz_poolLimit;
-			//mpz_init_set_ui(mpz_poolLimit, params.limit);
-			//auto poolLimitStr = heightStr(mpz_poolLimit);
-
-			//logLine(COORDINATOR_LOG_PREFIX, "%5.1f H/s (%2.0fs) | %5.1f H/s (%5s) | h=%u | best=%6s / %3s | %3u shares (%u rej, %u blocks) | %d threads%s",
-			//	hashesPerSecondSinceLast,
-			//	durationSinceLast.count(),
-			//	hashesPerSecondSinceStart,
-			//	formatDuration(durationSinceStart.count()).c_str(),
-			//	params.height,
-			//	bestStr.c_str(),
-			//	poolLimitStr.c_str(),
-			//	getTotalSharesAccepted(),
-			//	getTotalSharesSubmitted() - getTotalSharesAccepted(),
-			//	getTotalBlocksAccepted(),
-			//	miningConfig().nThreads,
-			//	miningConfig().relaxMode ? " (relax)" : "");
 		}
 		const uint32_t REPORT_INTERVAL_MS = 5 * 1000;
 		std::this_thread::sleep_for(std::chrono::milliseconds(REPORT_INTERVAL_MS));
