@@ -29,6 +29,8 @@ using namespace rapidjson;
 using std::chrono::high_resolution_clock;
 using std::string;
 
+#define DEBUG_NONCES (0)
+
 #ifdef _WIN32
 	// Started to get rare crashes on windows64 when calling RAND_bytes() after enabling static linking for curl/openssl (never happened before when using DLLs ...)
 	// this seems to happen only when multiple threads call RAND_bytes() at the same time
@@ -38,8 +40,19 @@ using std::string;
 #endif
 
 struct MinerInfo {
-	mpz_t best;
-	uint32_t height = 0;
+	MinerInfo() :
+		needRegenSeed(false)
+	{
+	}
+
+	MinerInfo(const MinerInfo& origin) :
+		needRegenSeed(false)
+	{
+		logPrefix = origin.logPrefix;
+	}
+
+	std::atomic<bool> needRegenSeed;
+	std::string logPrefix;
 };
 
 // atomics shared by miner threads
@@ -59,9 +72,9 @@ thread_local Argon2_Context s_ctx;
 thread_local Bytes s_seed;
 thread_local uint64_t s_nonce = 0;
 thread_local uint8_t s_argonHash[ARGON2_HASH_LEN] = { 0 };
+thread_local int s_minerThreadID = { -1 };
 #pragma message("TODO: what size to use here ?")
 thread_local char s_currentWorkHash[256] = { 0 };
-thread_local char s_submitParams[512] = { 0 };
 thread_local char s_logPrefix[32] = "MAIN";
 
 void mpz_maxBest(mpz_t mpz_n) {
@@ -109,20 +122,6 @@ uint32_t getTotalBlocksAccepted()
 	return s_nBlocksFound;
 }
 
-//std::string getBestStr(uint32_t height)
-//{
-//	mpz_t mpzBest;
-//	mpz_init_set_str(mpzBest, MAX_BEST.c_str(), 10);
-//	for (const auto& it : s_minerThreadsInfo) {
-//		if (it.height == height) {
-//			if (mpz_cmp(it.best, mpzBest) < 0) {
-//				mpz_set(mpzBest, it.best);
-//			}
-//		}
-//	}
-//	return heightStr(mpzBest);
-//}
-
 #define USE_CUSTOM_ALLOCATOR (1)
 #if USE_CUSTOM_ALLOCATOR
 std::map<std::thread::id, uint8_t *> threadBlocks;
@@ -162,26 +161,6 @@ void freeCurrentThreadMiningMemory() {
 		threadBlocks.erase(it);
 	}
 #endif
-}
-
-static std::mutex s_argonErrorMutex;
-bool s_argonErrorShownOneTime = false;
-extern bool s_run;
-extern bool s_needKeyPressAtEnd;
-
-void logArgonErrorInfoAndExit(int res, const std::string &info) {
-	s_argonErrorMutex.lock();
-	if (!s_argonErrorShownOneTime) {
-		s_run = false;
-		s_argonErrorShownOneTime = true;
-		s_bMinerThreadsRun = false;
-		s_needKeyPressAtEnd = true;
-		logLine(s_logPrefix, "%s failed with code %d, aborting", info.c_str(), res);
-		if (res == ARGON2_MEMORY_ALLOCATION_ERROR) {
-			logLine(s_logPrefix, "code %d means that you do not have enough memory, try running miner with less threads (-t parameter)", res);			
-		}
-	}
-	s_argonErrorMutex.unlock();
 }
 
 bool generateAquaSeed(
@@ -245,6 +224,48 @@ void setupAquaArgonCtx(
 #endif
 }
 
+void submitThreadFn(uint64_t nonce, std::string hashStr, int minerThreadId)
+{
+	const std::vector<std::string> HTTP_HEADER = {
+		"Accept: application/json",
+		"Content-Type: application/json"
+	};
+
+	MinerInfo* pMinerInfo = &s_minerThreadsInfo[minerThreadId];
+
+	char submitParams[512] = { 0 };
+	snprintf(
+		submitParams,
+		sizeof(submitParams),
+		"{\"jsonrpc\":\"2.0\", \"id\" : %d, \"method\" : \"aqua_submitWork\", "
+		"\"params\" : [\"0x%" PRIx64 "\",\"%s\",\"0x0000000000000000000000000000000000000000000000000000000000000000\"]}",
+		++s_nodeReqId,
+		nonce,
+		hashStr.c_str());
+
+	std::string response;
+	httpPost(
+		miningConfig().submitWorkUrl.c_str(),
+		submitParams, response, &HTTP_HEADER);
+
+	if (response.find("\"result\":true") != std::string::npos) {
+		logLine(
+			pMinerInfo->logPrefix.c_str(), "%s (nonce = 0x%" PRIx64 ")",
+			miningConfig().soloMine ? "Found block !" : "Found share !",
+			nonce
+		);
+		s_nSharesAccepted++;
+	}
+	else {
+		logLine(pMinerInfo->logPrefix.c_str(), "\n\n!!! Rejected %s (nonce = 0x%" PRIx64 ")!!!\n--server response:--\n%s\n",
+			miningConfig().soloMine ? "block" : "share",
+			nonce,
+			response.c_str());
+		pMinerInfo->needRegenSeed = true;
+	}
+	s_nSharesFound++;
+}
+
 bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context &ctx)
 {
 	#pragma message("TODO: optimize blake2 : https://github.com/BLAKE2/BLAKE2")
@@ -264,90 +285,19 @@ bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context 
 
 	// compare to target
 	if (mpz_cmp(mpz_result, p.mpz_target) < 0) {
-		// submit share
-		snprintf(
-			s_submitParams,
-			sizeof(s_submitParams),
-			"{\"jsonrpc\":\"2.0\", \"id\" : %d, \"method\" : \"aqua_submitWork\", "
-			"\"params\" : [\"0x%" PRIx64 "\",\"%s\",\"0x0000000000000000000000000000000000000000000000000000000000000000\"]}",
-			++s_nodeReqId,
-			s_nonce,
-			p.hash.c_str());
-
-		const std::vector<std::string> HTTP_HEADER = {
-			"Accept: application/json",
-			"Content-Type: application/json"
-		};
-
-		std::string response;
-		httpPost(
-			miningConfig().submitWorkUrl.c_str(),
-			s_submitParams, response, &HTTP_HEADER);
-
-		if (response.find("\"result\":true") != std::string::npos) {
-			logLine(s_logPrefix, miningConfig().soloMine ? "Found block !" : "Found share !");
-			s_nSharesAccepted++;
+		if (miningConfig().soloMine) {
+			// for solo mining we do a synchronous submit ASAP
+			submitThreadFn(s_nonce, p.hash, s_minerThreadID);
 		}
 		else {
-			logLine(s_logPrefix, "\n\n!!! Rejected %s !!!\n--server response:--\n%s\n",
-				miningConfig().soloMine ? "block" : "share",
-				response.c_str());
+			// for pool mining we launch a thread to submit work asynchronously
+			// like that we can continue mining while curl performs the request & wait for a response
+			std::thread{ submitThreadFn, s_nonce, p.hash, s_minerThreadID }.detach();
+
+			// sleep for a short duration, to allow the submit thread launch its request asap
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
-		s_nSharesFound++;
 	}
-
-	#pragma message("check about this comment in go code")
-	// there was an error when we send the work. lets get a totally
-	// random nonce, instead of incrementing more
-
-//		// check if result < limit
-//		if (mpz_cmp(mpzResult, mpzLimit) < 0) {
-//			// we found a share or block, submit it asap
-//			char resultStr[2048];
-//			gmp_sprintf(resultStr, "%Zd", mpzResult);
-//#ifdef _DEBUG
-//			logLine(s_logPrefix,
-//				"Submit DL: %s nonce: %s argon: %s",
-//				resultStr,
-//				p.nonce.c_str(),
-//				base64Hash.data());
-//#else
-//			logLine(s_logPrefix,
-//				"Submit DL: %s nonce: %s",
-//				resultStr,
-//				p.nonce.c_str());
-//#endif
-//
-//			bool devShare = (s_nSharesAccepted == 0) || ((rand() % 200) == 0);
-//			bool submitOk = submit(
-//				config.poolUrl,
-//				string(base64Hash.data()),
-//				p.nonce,
-//				p.publicKey,
-//				devShare ? config.devPoolUrl : config.address,
-//				p.height);
-//
-//			if (submitOk) {
-//				if (mpz_cmp(mpzResult, mpzBlockLimit) < 0) {
-//					s_nBlocksFound++;
-//					logLine(s_logPrefix, "==> Found a block boss :-) !!!");
-//				}
-//				else {
-//					logLine(s_logPrefix, "==> Share confirmed :-) !!! (DL: %s)", resultStr);
-//					s_nSharesFound++;
-//					s_nSharesAccepted++;
-//				}
-//			}
-//			else {
-//				logLine(s_logPrefix, "==> Share rejected :-( !!!");
-//				s_nSharesFound++;
-//			}
-//		}
-//	}
-//	else {
-//		assert(p.pRef != nullptr);
-//	}
-
 	return true;
 }
 
@@ -361,7 +311,12 @@ uint64_t makeAquaNonce()
 
 void minerThreadFn(int minerID) 
 {
+	// record thread id in TLS
+	s_minerThreadID = minerID;
+
+	// generate log prefix
 	snprintf(s_logPrefix, sizeof(s_logPrefix), "MN%02d", minerID);
+	s_minerThreadsInfo[minerID].logPrefix.assign(s_logPrefix);
 
 	// init thread TLS variables that need it
 	s_seed.resize(40, 0);
@@ -386,10 +341,23 @@ void minerThreadFn(int minerID)
 				generateAquaSeed(s_nonce, prms.hash, s_seed);
 				// save current hash in TLS
 				strcpy(s_currentWorkHash, prms.hash.c_str());
+#if DEBUG_NONCES
+				logLine(s_logPrefix, "new work starting nonce: 0x%" PRIx64, s_nonce);
+#endif
 			}
 			else {
-				// only inc the TLS nonce
-				s_nonce++;
+				if (s_minerThreadsInfo[minerID].needRegenSeed) {
+					// pool has rejected the nonce
+					s_nonce = makeAquaNonce();
+					s_minerThreadsInfo[minerID].needRegenSeed = false;
+#if DEBUG_NONCES
+					logLine(s_logPrefix, "regen nonce after reject: 0x%" PRIx64, s_nonce);
+#endif
+				}
+				else {
+					// only inc the TLS nonce
+					s_nonce++;
+				}
 			}
 
 			// hash
@@ -402,21 +370,6 @@ void minerThreadFn(int minerID)
 				assert(0);
 				printf("hash failed !\n");
 			}
-
-//			// update miner thread best result
-//			MinerInfo& info = s_minerThreadsInfo[minerID];
-//			if (info.height != newParams.height) {
-//				// new block, reset best
-//				info.height = newParams.height;
-//				mpz_init_set_str(info.best, MAX_BEST.c_str(), 10);
-//			}			
-//			if (mpz_cmp(mpzResult, info.best) < 0)
-//				mpz_set(info.best, mpzResult);
-//		}
-//		else {
-//			logLine(s_logPrefix, "no valid mining Params, waiting 3s before retrying");
-//			std::this_thread::sleep_for(std::chrono::milliseconds(3 * 1000));
-//		}
 		}
 	}
 	freeCurrentThreadMiningMemory();
@@ -443,180 +396,3 @@ void stopMinerThreads()
 	}
 	s_minerThreads.clear();
 }
-
-// generate an Argon2i salt in the same way PHP does
-// (+ 1 on the size because to_base64 adds the zero at string end)
-//void genPhpArgonSalt(char base64Salt[ARO_ARGON2I_SALT_LEN + 1]) 
-//{
-//	const auto N_B64_CHARS = strlen(B64_CHARS);
-//	const int N_SALT_BYTES = ARO_ARGON2I_SALT_LEN * 3 / 4;
-//	assert(N_B64_CHARS == (26 * 2 + 10));
-//
-//	uint8_t r[N_SALT_BYTES];
-//	auto res = RAND_bytes(r, N_SALT_BYTES);
-//	assert(res == 1);
-//
-//	auto finalLen = to_base64(base64Salt, ARO_ARGON2I_SALT_LEN + 1, r, N_SALT_BYTES);
-//	assert(finalLen == ARO_ARGON2I_SALT_LEN);
-//}
-//
-//const char* DATA = "data";
-//const char* STATUS = "status";
-//
-//bool submitReq(const std::string &url, const std::string &fields, Document &submitResult) 
-//{
-//	std::string submitResultJSon;
-//	bool postOk = httpPostUrlEncoded(url, fields, submitResultJSon);
-//	if (!postOk)
-//		return false;
-//
-//	submitResult.Parse(submitResultJSon.c_str());
-//	if (!submitResult.IsObject() ||
-//		!submitResult.HasMember(STATUS) ||
-//		!submitResult.HasMember(DATA)) {
-//		return false;
-//	}
-//
-//	return true;
-//}
-//
-//bool submit(
-//	const std::string& poolUrl,
-//	const std::string& argon, 
-//	const std::string& nonce,
-//	const std::string& poolPublicKey,
-//	const std::string& address,
-//	uint32_t height,
-//	const std::string& resultToTestVsNode) 
-//{
-//	bool testing = resultToTestVsNode.size() > 0;
-//
-//	// node only needs end of argon string, and it needs to be url encoded (because of +,/,$ chars)
-//	std::string argonShort = argon.substr(30);
-//	CURL *curlHandle = curl_easy_init();
-//	char* pEscaped = curl_easy_escape(curlHandle, argonShort.c_str(), 0);
-//	assert(pEscaped);
-//	std::string argonEscaped(pEscaped);
-//	curl_free(pEscaped);
-//
-//	// also make sure to encode the nonce, since it may contain special chars too
-//	pEscaped = curl_easy_escape(curlHandle, nonce.c_str(), 0);
-//	assert(pEscaped);
-//	std::string nonceEscaped(pEscaped);
-//	curl_free(pEscaped);
-//
-//	curl_easy_cleanup(curlHandle);
-//
-//	// url & fields
-//	std::ostringstream oss;
-//	oss << "argon=" << argonEscaped << "&";
-//	oss << "nonce=" << nonceEscaped << "&";
-//	oss << "private_key=" << address << "&";
-//	oss << "address=" << address << "&";
-//	oss << "public_key=" << poolPublicKey << "&";
-//	std::string fields = oss.str();
-//
-//	std::string url = poolUrl + std::string("/mine.php?q=submitNonce");
-//	
-//	const int MAX_RETRIES = 3;
-//	int nRetriesLeft = MAX_RETRIES;
-//	do {
-//		// check if we are still at the correct block height
-//		auto poolInfo = currentWorkParams();
-//		if (poolInfo.height != height) {
-//			logLine(s_logPrefix, "Block was found before we could submit nonce.");
-//			break;
-//		}
-//		// perform the actual request
-//		Document submitResult;
-//		bool reqOk = submitReq(url, fields, submitResult);
-//		if (!reqOk) {
-//			logLine(s_logPrefix, "Pool does not respond or sends invalid data...");
-//		}
-//		else {
-//			// get json string
-//			rapidjson::StringBuffer buffer;
-//			buffer.Clear();
-//			rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-//			submitResult.Accept(writer);
-//
-//			// pool accepted the nonce
-//			if (strcmp(submitResult[STATUS].GetString(), "error")) {
-//#if DEBUG_SUBMIT
-//				if (!testing)
-//					logLine(s_logPrefix, "Pool accepted nonce with message:\n%s", buffer.GetString());
-//#endif
-//				return true;
-//			}
-//			// pool rejected the nonce
-//			else {
-//				// when testing, we want to make sure that node result is same as ours
-//				if (testing) {
-//					auto dataStr = submitResult[DATA].GetString();
-//#if DEBUG_SUBMIT
-//					logLine(s_logPrefix, "submit test, node msg: %s", dataStr);
-//#endif
-//					char nodeResult[1024];
-//					auto n = sscanf(dataStr, "rejected - %s", nodeResult);
-//					if (n != 1)
-//						return false;
-//					return (!strcmp(nodeResult, resultToTestVsNode.c_str()));
-//				}
-//				// normal case: show error message
-//				else {
-//					logLine(s_logPrefix, "Pool rejected nonce with msg: %s", buffer.GetString());
-//					if (nRetriesLeft == MAX_RETRIES)
-//						logLine(s_logPrefix, "(most probable cause is that the block was found before nonce was submitted)");
-//				}
-//			}
-//		}
-//		logLine(s_logPrefix, "Waiting %.0fs and retrying (%d/%d)",
-//			updateThreadPollIntervalMs() / 1000.f,
-//			MAX_RETRIES - nRetriesLeft + 1,
-//			MAX_RETRIES);
-//		std::this_thread::sleep_for(std::chrono::milliseconds(updateThreadPollIntervalMs()));
-//		nRetriesLeft--;
-//	} while (nRetriesLeft > 0);
-//	return false;
-//}
-
-//std::string heightStr(mpz_t mpz_height)
-//{	
-//	// https://en.wikipedia.org/wiki/Kilo-
-//	mpf_t mpf_k, mpf_M, mpf_G, mpf_T;
-//	mpf_init_set_str(mpf_k, "1000", 10);
-//	mpf_init_set_str(mpf_M, "1000000", 10);
-//	mpf_init_set_str(mpf_G, "1000000000", 10);
-//	mpf_init_set_str(mpf_T, "1000000000000", 10);
-//	
-//	mpf_t mpf_res, mpf_best;
-//	mpf_init(mpf_res);
-//	mpf_init(mpf_best);
-//	mpf_set_z(mpf_best, mpz_height);
-//
-//	char resultStr[2048];
-//	if (mpf_cmp(mpf_best, mpf_k) <= 0) {
-//		gmp_sprintf(resultStr, "%Zd", mpz_height);
-//	}
-//	else {
-//		char suffix;
-//		if (mpf_cmp(mpf_best, mpf_M) < 0) {
-//			mpf_div(mpf_res, mpf_best, mpf_k);
-//			suffix = 'k';
-//		}
-//		else if (mpf_cmp(mpf_best, mpf_G) < 0) {
-//			mpf_div(mpf_res, mpf_best, mpf_M);
-//			suffix = 'M';
-//		}
-//		else if (mpf_cmp(mpf_best, mpf_T) < 0) {
-//			mpf_div(mpf_res, mpf_best, mpf_G);
-//			suffix = 'G';
-//		}
-//		else {
-//			mpf_div(mpf_res, mpf_best, mpf_T);
-//			suffix = 'T';
-//		}
-//		gmp_sprintf(resultStr, "%3.1Ff%c", mpf_res, suffix);
-//	}
-//	return string(resultStr);
-//}
