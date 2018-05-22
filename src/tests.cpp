@@ -99,53 +99,8 @@ bool testAquaHashing() {
 	printf("HashLength : %d\n", ctx.outlen);
 #endif
 
-	// - test argon initial hash
-#if VERBOSE_TESTS
-	printf("\n- Initial Hash test -\n");
-#endif
-
-	uint8_t blockhash[ARGON2_PREHASH_SEED_LENGTH];
-	initial_hash(blockhash, &ctx, Argon2_i);
-
-	const uint8_t REF_H0[ARGON2_PREHASH_DIGEST_LENGTH] = { 97, 189, 62, 244, 247, 196, 145, 234, 110, 132, 189, 1, 247, 106, 121, 227, 238, 199, 204, 50, 130, 73, 27, 135, 255, 184, 130, 242, 164, 83, 36, 225, 249, 89, 83, 103, 37, 237, 84, 109, 52, 249, 57, 94, 119, 84, 76, 193, 244, 38, 86, 215, 189, 218, 233, 179, 96, 88, 241, 32, 81, 35, 117, 84, };
-	bool hashOk = (ARGON2_PREHASH_DIGEST_LENGTH == sizeof(REF_H0)) && equal(
-		blockhash,
-		REF_H0,
-		sizeof(REF_H0));
-	if (!hashOk) {
-		printf("Error: Initial hash test failed");
-		return false;
-	}
-
-#if VERBOSE_TESTS
-	printBytes("H0 :", blockhash, ARGON2_PREHASH_DIGEST_LENGTH);
-#endif
-
-	// - test argon2i
-	int res;
-#if VERBOSE_TESTS
-	printf("\n- Argon2i test -\n");
-#endif
-	res = argon2_ctx(&ctx, Argon2_i);
-	if (res != ARGON2_OK) {
-		printf("Error: argon2_ctx failed (Argon2_i)");
-		return false;
-	}
-
-	uint8_t REF_ARGON2I[] = { 204, 4, 18, 128, 226, 103, 56, 36, 254, 225, 79, 81, 158, 68, 162, 153, 176, 241, 21, 25, 31, 132, 86, 214, 84, 148, 77, 67, 189, 101, 153, 85, };
-	bool argon2iOk = (ctx.outlen == sizeof(REF_ARGON2I)) && equal(
-	ctx.out,
-		REF_ARGON2I,
-	sizeof(REF_ARGON2I));
-	if (!argon2iOk) {
-		printf("Error: argon2i test failed");
-		return false;
-	}
-#if VERBOSE_TESTS
-	printBytes("result: ", ctx.out, ctx.outlen);
-#endif
-
 	// - test argon2id
+	int res;
 #if VERBOSE_TESTS
 	printf("\n- Argon2id test -\n");
 #endif
@@ -215,30 +170,77 @@ bool testAquaHashing() {
 	}
 
 
-	// - Blake2b bench
-	const bool BENCH_BLAKE2B = false;
-	//https://www.cryptologie.net/article/406/simd-instructions-in-go/
+	// - initial hash bench
+	const bool BENCH_INITIAL_HASH = false;
+	if (BENCH_INITIAL_HASH)
+	{
+		printf("\n\n------------ INITIAL HASH BENCH\n\n");
 
-	if (BENCH_BLAKE2B)
-	{		
-/*		
-		Timer tTotal;
-		tTotal.start();
+		// need seed /context / block hash to call initial_hash()
 		Bytes seed;
-		generateAquaSeed(NONCE, WORK_HASH_HEX, seed);
-
 		Argon2_Context ctx;
 		uint8_t rawHash[ARGON2_HASH_LEN];
+		generateAquaSeed(NONCE, WORK_HASH_HEX, seed);
 		setupAquaArgonCtx(ctx, seed, rawHash);
 
+		// setup params
+		const size_t N_ITER = 
+#ifdef _DEBUG
+			(size_t)(5 * 1e4);
+#else
+			(size_t)(50 * 1e5);
+#endif
 		uint8_t blockhash[ARGON2_PREHASH_SEED_LENGTH];
-		for (int i = 0; i < 100 * 1000; i++) {
-			initial_hash(blockhash, &ctx, Argon2_i);
+		uint8_t blockhashOpt[ARGON2_PREHASH_SEED_LENGTH];
+		
+		for (int k = 0; k < 3; k++) 
+		{
+			// benchmark normal
+			Timer tTotalNormal;
+			tTotalNormal.start();
+			{
+				for (int i = 0; i < N_ITER; i++) {
+					initial_hash(blockhash, &ctx, Argon2_id);
+				}
+			}
+			float normalDurationMs = 0;
+			tTotalNormal.end(normalDurationMs);
+
+			// benchmark opt
+			Timer tTotalOpt;
+			tTotalOpt.start();
+			{
+				for (int i = 0; i < N_ITER; i++) {
+					initial_hash_opt_aqua(blockhashOpt, &ctx, Argon2_id);
+				}
+			}
+			float optDurationMs = 0;
+			tTotalOpt.end(optDurationMs);
+
+			printf("%llu iterations => %.2fms / %.2fms => %.2f%%\n",
+				N_ITER,
+				normalDurationMs*1000.f,
+				optDurationMs*1000.f,
+				100.f * ((optDurationMs - normalDurationMs) / normalDurationMs));
 		}
-		float durationMs = 0;
-		tTotal.end(durationMs);
-		printf("=====>%.2fsms", durationMs*1000.f);
-*/
+
+		const uint8_t refHash[ARGON2_PREHASH_SEED_LENGTH] = { 203, 25, 163, 127, 246, 90, 9, 74, 160, 254, 217, 147, 200, 118, 80, 235, 105, 20, 113, 211, 106, 228, 185, 243, 81, 25, 160, 27, 53, 226, 238, 149, 187, 104, 128, 234, 131, 241, 186, 247, 238, 251, 74, 22, 46, 218, 139, 78, 42, 59, 153, 26, 230, 129, 64, 0, 92, 155, 59, 59, 238, 167, 30, 184, };
+
+		for (int i = 0; i < ARGON2_PREHASH_DIGEST_LENGTH; i++) {
+			if (refHash[i] != blockhash[i]) {
+				printf("VALIDATION ERROR (NORMAL) !\n");
+				exit(1);
+			}
+		}
+
+		for (int i = 0; i < ARGON2_PREHASH_DIGEST_LENGTH; i++) {
+			if (refHash[i] != blockhashOpt[i]) {
+				printf("VALIDATION ERROR (OPT) !\n");
+				exit(1);
+			}
+		}
+
+		printf("------------\n");
 	}
 
 	return true;

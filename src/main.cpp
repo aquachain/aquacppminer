@@ -152,9 +152,6 @@ int main(int argc, char** argv) {
 	}
 #endif
 
-	// create & launch update thread
-	startUpdateThread();
-
 	// perform tests
 #if DO_TESTS
 	if (!testAquaHashing()) {
@@ -165,6 +162,9 @@ int main(int argc, char** argv) {
 	// free any memory used for tests
 	freeCurrentThreadMiningMemory();
 #endif
+
+	// create & launch update thread
+	startUpdateThread();
 
 	// auto detect number of threads if not specified
 	if (miningConfig().nThreads <= 0) {
