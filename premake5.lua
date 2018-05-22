@@ -120,8 +120,8 @@ workspace "aquacppminer"
 		files {
 			"src/*.h",
 			"src/*.cpp",
-			"blake2/ref/*.h",
-			"blake2/ref/blake2b-ref.c",
+			"blake2/sse/*.h",
+			"blake2/sse/blake2b.c",
 			"phc-winner-argon2/src/blake2/*.*",
 			"phc-winner-argon2/src/argon2.*",
 			"phc-winner-argon2/src/core.*",
