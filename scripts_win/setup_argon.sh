@@ -17,6 +17,7 @@ cd ..
 
 echo
 echo "- Clone Blake2B -"
-rm -rf "BLAKE2"
-git clone https://github.com/BLAKE2/BLAKE2.git
+rm -rf "blake2"
+git clone https://cryptogone@bitbucket.org/cryptogone/blake2.git
+
 
