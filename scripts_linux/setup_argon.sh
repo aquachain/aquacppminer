@@ -9,8 +9,8 @@ echo "Delete $LIB_PATH"
 rm -rf "$LIB_PATH"
 
 echo
-echo "- Clone & select opt_blake branch -"
+echo "- Clone & select opt_aqua branch -"
 git clone https://cryptogone@bitbucket.org/cryptogone/phc-winner-argon2-for-ario-cpp-miner.git "$LIB_PATH"
 cd "$LIB_PATH"
-git checkout opt_blake
+git checkout opt_aqua
 cd ..
