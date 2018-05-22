@@ -13,6 +13,8 @@
 #endif
 #include "hex_encode_utils.h"
 
+#include "../blake2/sse/blake2-config.h"
+
 #include <assert.h>
 #include <openssl/rand.h>
 #include <openssl/conf.h>
@@ -72,6 +74,49 @@ void initConfigurationFile() {
 	}
 }
 
+std::string getBlakeSSE() {
+#if defined(HAVE_SSE41)
+	return "SSE4.1";
+#elif defined(HAVE_SSSE3)
+	return "SSE3";
+#elif defined(HAVE_SSE2)
+	return "SSE2";
+#else
+	return "";
+#endif
+}
+
+std::string getBlakeAVX() {
+#if defined(HAVE_AVX)
+	return "AVX";
+#else
+	return "";
+#endif
+}
+
+std::string getArgon2idAVX() {
+	return ARGON_ARCH;
+}
+
+void printOptimizationsInfo() {
+	auto blakeAVX = std::string(" ") + getBlakeAVX();
+	auto blakeSSE = std::string(" ") + getBlakeSSE();
+	if (blakeSSE.size() || blakeAVX.size()) {
+		printf("-- Blake2b using%s%s\n", blakeAVX.c_str(), blakeSSE.c_str());
+	}
+	else {
+		printf("-- Warning: Blake2b not using any CPU Instructions set (SSE, AVX, ...)\n");
+	}
+
+	auto argonAVX = getArgon2idAVX();
+	if (argonAVX.size()) {
+		printf("-- Argon2id using %s\n", argonAVX.c_str());
+	}
+	else {
+		printf("-- Standard Argon2id (no AVX or AVX2)\n");
+	}
+}
+
 int main(int argc, char** argv) {
 	s_configDir = getPwd(argv);
 
@@ -81,11 +126,12 @@ int main(int argc, char** argv) {
 #endif
 
 	// welcome message
-	printf("AquaCppMiner %s %s%s%s\n(use -h for help, ctrl+c to quit)\n",
+	printf("-- AquaCppMiner %s %s (use -h for help, ctrl+c to quit)\n",
 		VERSION.c_str(),
-		ARGON_ARCH.c_str(),
-		(ARGON_ARCH.size() > 0) ? " " : "",
 		ARCH);
+
+	printOptimizationsInfo();
+
 	fflush(stdout);
 
 	// openssl initialization
