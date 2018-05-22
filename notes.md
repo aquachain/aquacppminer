@@ -2,6 +2,7 @@
 * logFile (mainly for solo mining)
 * pool mining fee
 * solo mining fee (needs dual solo / pool mining)
+* "not enough lines" issue (try solo mining with short config file to reproduce)
 
 * GETWORK
 
