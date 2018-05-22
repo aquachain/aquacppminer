@@ -14,3 +14,9 @@ git clone https://cryptogone@bitbucket.org/cryptogone/phc-winner-argon2-for-ario
 cd "$LIB_PATH"
 git checkout opt_aqua
 cd ..
+
+echo
+echo "- Clone Blake2B -"
+rm -rf "BLAKE2"
+git clone https://github.com/BLAKE2/BLAKE2.git
+

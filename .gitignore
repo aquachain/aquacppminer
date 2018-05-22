@@ -17,3 +17,4 @@ change_*
 golang/debug
 golang/*.exe
 docs/
+BLAKE2/
