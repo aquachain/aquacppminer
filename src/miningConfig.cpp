@@ -15,6 +15,9 @@ void setMiningConfig(MiningConfig cfg) {
 	assert(cfg.getWorkUrl.size() > 0);
 	cfg.submitWorkUrl = cfg.getWorkUrl;
 
+	if (cfg.soloMine)
+		cfg.fullNodeUrl = cfg.submitWorkUrl;
+
 	// set globally
 	s_cfg = cfg;
 }
