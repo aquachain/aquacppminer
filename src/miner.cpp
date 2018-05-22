@@ -279,8 +279,6 @@ void submitThreadFn(uint64_t nonce, std::string hashStr, int minerThreadId)
 
 bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context &ctx)
 {
-	#pragma message("TODO: optimize blake2 : https://github.com/BLAKE2/BLAKE2")
-	
 	// update the seed with the new nonce
 	updateAquaSeed(nonce, s_seed);
 
