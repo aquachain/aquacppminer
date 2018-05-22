@@ -83,7 +83,7 @@ std::string formatBlockInfo(const t_blockInfo &b) {
 	char buf[512];
 
 	if (b.miner.size() == 0) {
-		snprintf(buf, sizeof(buf), 
+		snprintf(buf, sizeof(buf),
 			"%-16s : %s\n"
 			"%-16s : %s\n"
 			"%-16s : %s",
@@ -296,7 +296,7 @@ void updateThreadFn() {
 
 				// building log message
 				char header[2048];
-				snprintf(header, sizeof(header), "New Pending block to mine:\n\n- Work info -\n%-16s : %s\n%-16s : %s\n%-16s : %s\n",
+				snprintf(header, sizeof(header), "New Pending block to mine:\n\n- New work info-\n%-16s : %s\n%-16s : %s\n%-16s : %s",
 					"hash", 
 					newWork.hash.c_str(),
 					miningConfig().soloMine ? "block difficulty" : "share difficulty",
@@ -307,16 +307,25 @@ void updateThreadFn() {
 				char body[2048] = { 0 };
 				t_blocksInfo blocksInfo;
 				if (!getBlocksInfo(queryUrl, blocksInfo)) {
-					snprintf(body, sizeof(body), "Cannot show new block information (do not panic, mining might still be ok)");
+					snprintf(body, sizeof(body), 
+						"Cannot show new block information (do not panic, mining might still be ok)");
 				}
 				else {
 					if (hasFullNode) {
-						snprintf(body, sizeof(body), "- Latest mined block -\n%s\n\n",
+						snprintf(body, sizeof(body), 
+							"\n- Latest mined block -\n%s\n\n",
 							formatBlockInfo(blocksInfo.latest).c_str());
+						auto n = strlen(body);
+						snprintf(body + n, sizeof(body) - n, 
+							"- Pending block -\n%s\n",
+							formatBlockInfo(blocksInfo.pending).c_str());
 					}
-					auto n = strlen(body);
-					snprintf(body + n, sizeof(body) - n, "- Pending block -\n%s\n",
-						formatBlockInfo(blocksInfo.pending).c_str());
+					else {
+						snprintf(body, sizeof(body), 
+							"%-16s : %s\n",
+							"block height",
+							blocksInfo.pending.height.c_str());
+					}
 				}
 				
 				// log new work / block info
