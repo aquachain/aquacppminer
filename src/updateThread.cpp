@@ -296,7 +296,7 @@ void updateThreadFn() {
 
 				// building log message
 				char header[2048];
-				snprintf(header, sizeof(header), "New Pending block to mine:\n\n- New work info-\n%-16s : %s\n%-16s : %s\n%-16s : %s",
+				snprintf(header, sizeof(header), "\n\n- New work info -\n%-16s : %s\n%-16s : %s\n%-16s : %s",
 					"hash", 
 					newWork.hash.c_str(),
 					miningConfig().soloMine ? "block difficulty" : "share difficulty",
@@ -311,20 +311,16 @@ void updateThreadFn() {
 						"Cannot show new block information (do not panic, mining might still be ok)");
 				}
 				else {
+					snprintf(body, sizeof(body),
+						"%-16s : %s\n",
+						"block height",
+						blocksInfo.pending.height.c_str());
+
 					if (hasFullNode) {
-						snprintf(body, sizeof(body), 
-							"\n- Latest mined block -\n%s\n\n",
-							formatBlockInfo(blocksInfo.latest).c_str());
 						auto n = strlen(body);
-						snprintf(body + n, sizeof(body) - n, 
-							"- Pending block -\n%s\n",
-							formatBlockInfo(blocksInfo.pending).c_str());
-					}
-					else {
-						snprintf(body, sizeof(body), 
-							"%-16s : %s\n",
-							"block height",
-							blocksInfo.pending.height.c_str());
+						snprintf(body + n, sizeof(body) - n,
+							"\n- Latest mined block info -\n%s\n\n",
+							formatBlockInfo(blocksInfo.latest).c_str());
 					}
 				}
 				
