@@ -1,6 +1,5 @@
 * --- TODO ---
 * show rejected share nonce
-* improve solo mining output
 * logFile (mostly for solo mining)
 	=> how to limit the size of this file ?
 	=> define max number of lines
