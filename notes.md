@@ -1,5 +1,11 @@
 * --- TODO ---
-* logFile (mainly for solo mining)
+* show rejected share nonce
+* improve solo mining output
+* logFile (mostly for solo mining)
+	=> how to limit the size of this file ?
+	=> define max number of lines
+	=> when max reached clear out first 50% of the logFile
+* pragma messages for SSE & friends (ARGON / BLAKE2B)
 * pool mining fee
 * solo mining fee (needs dual solo / pool mining)
 * "not enough lines" issue (try solo mining with short config file to reproduce)
