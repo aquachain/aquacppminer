@@ -15,7 +15,7 @@ const int AQUA_ARGON_THREADS = 1;
 const int AQUA_ARGON_TIME = 1;
 
 //
-#define DEBUG_REJECTED (2)
+#define DEBUG_REJECTED (1)
 
 // size of the hash that argon2i / argon2id will generate
 const uint32_t ARGON2_HASH_LEN = 32;
