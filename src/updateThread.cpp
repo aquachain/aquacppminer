@@ -295,7 +295,7 @@ void updateThreadFn() {
 					miningConfig().getWorkUrl;
 
 				// building log message
-				char header[2048];
+				char header[2048] = { 0 };
 				snprintf(header, sizeof(header), "\n\n- New work info -\n%-16s : %s\n%-16s : %s\n%-16s : %s",
 					"hash", 
 					newWork.hash.c_str(),

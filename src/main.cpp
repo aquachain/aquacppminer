@@ -134,6 +134,9 @@ int main(int argc, char** argv) {
 
 	fflush(stdout);
 
+	// random seed
+	srand((unsigned int)time(NULL));
+
 	// openssl initialization
 	ERR_load_crypto_strings();
 	OpenSSL_add_all_algorithms();

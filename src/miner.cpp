@@ -254,21 +254,36 @@ void submitThreadFn(uint64_t nonce, std::string hashStr, int minerThreadId)
 		nonce,
 		hashStr.c_str());
 
+#if DEBUG_REJECTED
+	logLine(pMinerInfo->logPrefix, "submitting nonce 0x%" PRIx64, nonce);
+#endif
+
 	std::string response;
-	httpPost(
+	bool ok = httpPost(
 		miningConfig().submitWorkUrl.c_str(),
 		submitParams, response, &HTTP_HEADER);
 
-	if (response.find("\"result\":true") != std::string::npos) {
+#if (DEBUG_REJECTED == 2)
+	std::this_thread::sleep_for(std::chrono::milliseconds((rand() % 100) * 1000));
+#endif
+
+	if (!ok) {
 		logLine(
-			pMinerInfo->logPrefix.c_str(), "%s (nonce = 0x%" PRIx64 ")",
+			pMinerInfo->logPrefix, 
+			"\n\n!!! httpPost failed while trying to submit nonce 0x%" PRIx64 "!!!\n");
+	}
+	else if (response.find("\"result\":true") != std::string::npos) {
+		logLine(
+			pMinerInfo->logPrefix, "%s (nonce = 0x%" PRIx64 ")",
 			miningConfig().soloMine ? "Found block !" : "Found share !",
 			nonce
 		);
 		s_nSharesAccepted++;
 	}
 	else {
-		logLine(pMinerInfo->logPrefix.c_str(), "\n\n!!! Rejected %s (nonce = 0x%" PRIx64 ")!!!\n--server response:--\n%s\n",
+		logLine(
+			pMinerInfo->logPrefix, 
+			"\n\n!!! Rejected %s (nonce = 0x%" PRIx64 ")!!!\n--server response:--\n%s\n",
 			miningConfig().soloMine ? "block" : "share",
 			nonce,
 			response.c_str());
@@ -276,6 +291,11 @@ void submitThreadFn(uint64_t nonce, std::string hashStr, int minerThreadId)
 	}
 	s_nSharesFound++;
 }
+
+#if (DEBUG_REJECTED == 2)
+const uint64_t REJECT_RATE = 500 * 1000;
+thread_local uint64_t s_cpt = 0;
+#endif
 
 bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context &ctx)
 {
@@ -293,8 +313,20 @@ bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context 
 	// convert hash to a mpz (big int)
 	mpz_fromBytesNoInit(ctx.out, ctx.outlen, mpz_result);
 
+	//
+	bool needSubmit = mpz_cmp(mpz_result, p.mpz_target) < 0;
+
+#if (DEBUG_REJECTED == 2)
+	s_cpt = (s_cpt + 1) % REJECT_RATE;
+	if (s_cpt == (REJECT_RATE - 1)) {
+		logLine(s_logPrefix, "Simulating a submit error");
+		needSubmit = true;
+		s_cpt = rand() % REJECT_RATE;
+	}
+#endif
+
 	// compare to target
-	if (mpz_cmp(mpz_result, p.mpz_target) < 0) {
+	if (needSubmit) {
 		if (miningConfig().soloMine) {
 			// for solo mining we do a synchronous submit ASAP
 			submitThreadFn(s_nonce, p.hash, s_minerThreadID);
@@ -331,6 +363,16 @@ void minerThreadFn(int minerID)
 	// init thread TLS variables that need it
 	s_seed.resize(40, 0);
 	setupAquaArgonCtx(s_ctx, s_seed, s_argonHash);
+
+#if (DEBUG_REJECTED == 2)
+	srand((unsigned int)time(NULL) + (unsigned int)((uintptr_t)(&s_cpt)));
+	s_cpt = rand() % REJECT_RATE;
+	logLine(s_logPrefix, "my rand() is 0x%" PRIx64, s_cpt);
+
+	unsigned int c = 0;
+	RAND_bytes((unsigned char*)&c, sizeof(c));
+	logLine(s_logPrefix, "my RAND_bytes() is 0x%x", c);
+#endif
 
 	// init mpz that will hold result
 	// initialization is pretty costly, so should stay here, done only one time
