@@ -368,7 +368,9 @@ void minerThreadFn(int minerID)
 	srand((unsigned int)time(NULL) + (unsigned int)((uintptr_t)(&s_cpt)));
 	s_cpt = rand() % REJECT_RATE;
 	logLine(s_logPrefix, "my rand() is 0x%" PRIx64, s_cpt);
+#endif
 
+#if (DEBUG_REJECTED)
 	unsigned int c = 0;
 	RAND_bytes((unsigned char*)&c, sizeof(c));
 	logLine(s_logPrefix, "my RAND_bytes() is 0x%x", c);
