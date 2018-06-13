@@ -19,3 +19,4 @@ golang/*.exe
 docs/
 BLAKE2/
 build/
+premake5.lua
