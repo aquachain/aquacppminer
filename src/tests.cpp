@@ -218,7 +218,7 @@ bool testAquaHashing() {
 			tTotalOpt.end(optDurationMs);
 
 			printf("%lu iterations => %.2fms / %.2fms => %.2f%%\n",
-				N_ITER,
+				(unsigned long)N_ITER,
 				normalDurationMs*1000.f,
 				optDurationMs*1000.f,
 				100.f * ((optDurationMs - normalDurationMs) / normalDurationMs));

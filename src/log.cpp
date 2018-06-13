@@ -33,3 +33,11 @@ void logLine(const char* prefix, const char* fmt, ...)
 	logLine(prefix, fmt, args);
 	va_end(args);
 }
+
+void logLine(std::string prefix, const char* fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	logLine(prefix.c_str(), fmt, args);
+	va_end(args);
+}
