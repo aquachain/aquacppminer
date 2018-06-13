@@ -235,7 +235,16 @@ void setupAquaArgonCtx(
 #endif
 }
 
-void submitThreadFn(uint64_t nonce, std::string hashStr, int minerThreadId)
+std::string nonceToString(uint64_t nonce) {
+	char tmp[256];
+	snprintf(tmp, sizeof(tmp),"0x%" PRIx64, nonce);
+	if (strlen(tmp) & 1) {
+		snprintf(tmp, sizeof(tmp), "0x0%" PRIx64, nonce);
+	}
+	return tmp;
+}
+
+void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId)
 {
 	const std::vector<std::string> HTTP_HEADER = {
 		"Accept: application/json",
@@ -244,18 +253,20 @@ void submitThreadFn(uint64_t nonce, std::string hashStr, int minerThreadId)
 
 	MinerInfo* pMinerInfo = &s_minerThreadsInfo[minerThreadId];
 
+	auto nonceStr = nonceToString(nonceVal);
+
 	char submitParams[512] = { 0 };
 	snprintf(
 		submitParams,
 		sizeof(submitParams),
 		"{\"jsonrpc\":\"2.0\", \"id\" : %d, \"method\" : \"aqua_submitWork\", "
-		"\"params\" : [\"0x%" PRIx64 "\",\"%s\",\"0x0000000000000000000000000000000000000000000000000000000000000000\"]}",
+		"\"params\" : [\"%s\",\"%s\",\"0x0000000000000000000000000000000000000000000000000000000000000000\"]}",
 		++s_nodeReqId,
-		nonce,
+		nonceStr.c_str(),
 		hashStr.c_str());
 
 #if DEBUG_REJECTED
-	logLine(pMinerInfo->logPrefix, "submitting nonce 0x%" PRIx64, nonce);
+	logLine(pMinerInfo->logPrefix, "submitting nonce %s", nonceStr.c_str());
 #endif
 
 	std::string response;
@@ -270,22 +281,23 @@ void submitThreadFn(uint64_t nonce, std::string hashStr, int minerThreadId)
 	if (!ok) {
 		logLine(
 			pMinerInfo->logPrefix, 
-			"\n\n!!! httpPost failed while trying to submit nonce 0x%" PRIx64 "!!!\n");
+			"\n\n!!! httpPost failed while trying to submit nonce %s !!!\n", 
+			nonceStr.c_str());
 	}
 	else if (response.find("\"result\":true") != std::string::npos) {
 		logLine(
-			pMinerInfo->logPrefix, "%s (nonce = 0x%" PRIx64 ")",
+			pMinerInfo->logPrefix, "%s (nonce = %s)",
 			miningConfig().soloMine ? "Found block !" : "Found share !",
-			nonce
+			nonceStr.c_str()
 		);
 		s_nSharesAccepted++;
 	}
 	else {
 		logLine(
 			pMinerInfo->logPrefix, 
-			"\n\n!!! Rejected %s (nonce = 0x%" PRIx64 ")!!!\n--server response:--\n%s\n",
+			"\n\n!!! Rejected %s (nonce = %s) !!!\n--server response:--\n%s\n",
 			miningConfig().soloMine ? "block" : "share",
-			nonce,
+			nonceStr.c_str(),
 			response.c_str());
 		pMinerInfo->needRegenSeed = true;
 	}
@@ -367,7 +379,7 @@ void minerThreadFn(int minerID)
 #if (DEBUG_REJECTED == 2)
 	srand((unsigned int)time(NULL) + (unsigned int)((uintptr_t)(&s_cpt)));
 	s_cpt = rand() % REJECT_RATE;
-	logLine(s_logPrefix, "my rand() is 0x%" PRIx64, s_cpt);
+	logLine(s_logPrefix, "my rand() is %s", nonceToString(s_cpt).c_str());
 #endif
 
 #if (DEBUG_REJECTED)
@@ -396,7 +408,7 @@ void minerThreadFn(int minerID)
 				// save current hash in TLS
 				strcpy(s_currentWorkHash, prms.hash.c_str());
 #if DEBUG_NONCES
-				logLine(s_logPrefix, "new work starting nonce: 0x%" PRIx64, s_nonce);
+				logLine(s_logPrefix, "new work starting nonce: %s", nonceToString(s_nonce).c_str());
 #endif
 			}
 			else {
@@ -405,7 +417,7 @@ void minerThreadFn(int minerID)
 					s_nonce = makeAquaNonce();
 					s_minerThreadsInfo[minerID].needRegenSeed = false;
 #if DEBUG_NONCES
-					logLine(s_logPrefix, "regen nonce after reject: 0x%" PRIx64, s_nonce);
+					logLine(s_logPrefix, "regen nonce after reject: %s", nonceToString(s_nonce).c_str());
 #endif
 				}
 				else {

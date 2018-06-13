@@ -1,5 +1,11 @@
 * --- TODO ---
 * show rejected share nonce
+OK fix this problem :
+	[MN01 18-05-31 16:41:34] submitting nonce 0x2e2d9c6d3d7e514
+	[MN01 18-05-31 16:41:34] 
+	!!! Rejected block (nonce = 0x2e2d9c6d3d7e514)!!!
+	--server response:--
+	{"jsonrpc":"2.0","id":9443,"error":{"code":-32602,"message":"invalid argument 0: hex string of odd length"}}
 * logFile (mostly for solo mining)
 	=> how to limit the size of this file ?
 	=> define max number of lines
