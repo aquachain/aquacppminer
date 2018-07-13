@@ -268,7 +268,7 @@ int main(int argc, char** argv) {
 			auto nSharesSubmitted = getTotalSharesSubmitted();
 			auto nSharesAccepted = getTotalSharesAccepted();
 			auto nSharesRejected = nSharesSubmitted - nSharesAccepted;
-			logLine(COORDINATOR_LOG_PREFIX, "%d threads | %6.2f kH/s | %s=%5lu Rejected=%5lu (%4.1f%%)", 
+			logLine(COORDINATOR_LOG_PREFIX, "%d threads | %6.2f kH/s | %s=%5lu | Rejected=%5lu (%4.1f%%)", 
 				miningConfig().nThreads,
 				hashesPerSecondSinceLast / 1000.f,
 				miningConfig().soloMine ? "Blocks" : "Shares",
