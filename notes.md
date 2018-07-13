@@ -1,21 +1,37 @@
-* --- TODO ---
-* show rejected share nonce
-OK fix this problem :
-	[MN01 18-05-31 16:41:34] submitting nonce 0x2e2d9c6d3d7e514
-	[MN01 18-05-31 16:41:34] 
-	!!! Rejected block (nonce = 0x2e2d9c6d3d7e514)!!!
-	--server response:--
-	{"jsonrpc":"2.0","id":9443,"error":{"code":-32602,"message":"invalid argument 0: hex string of odd length"}}
-* logFile (mostly for solo mining)
-	=> how to limit the size of this file ?
-	=> define max number of lines
-	=> when max reached clear out first 50% of the logFile
-* pragma messages for SSE & friends (ARGON / BLAKE2B)
-* pool mining fee
-* solo mining fee (needs dual solo / pool mining)
-* "not enough lines" issue (try solo mining with short config file to reproduce)
+# TODO
+  OK show rejected share nonce
+  OK fix "invalid argument 0: hex string of odd length"
+  * "not enough lines" issue (try solo mining with short config file to reproduce)
+  * pool mining fee
+  * solo mining fee (needs dual solo / pool mining)
+     pool.aquachain-foundation.org:8888
+     aqua.signal2noi.se:19998
+     https://aquacha.in/pool/
+  * pragma messages for SSE & friends (ARGON / BLAKE2B)
+  * WIP logFile (in branch)
 
-* GETWORK
+# REJECTION EXAMPLE
+
+- New work info -
+hash             : 0xbf572952195aba73a07c170e283941b3af63e61862240a40b478a37a2ce56e2c
+block difficulty : 19598633046
+block target     : 5908171705931750288436467571009182098917185097320310532001048212692
+block height     : 35888
+
+- Latest mined block info -
+height           : 35887
+miner            : 0x9e42af44f323de092ab3e03dcef9ef6098bf4769
+diff             : 18445772279
+target           : 6277432437412353648604369448352111896592387974673237807863191392264
+nonce            : 0xb371331a487cfcaf
+version          : 2
+
+!!! Rejected block (nonce = 0xd14c3f50449ee0b8) !!!
+--server response:--
+{"jsonrpc":"2.0","id":183790,"result":false}
+
+
+# GETWORK
 
 ```
 010.000.002.015.44722-107.161.024.142.08888: POST 
@@ -36,7 +52,7 @@ Content-Type: text/plain; charset=utf-8
 {"id":13,"jsonrpc":"2.0","result":["0x416e293fb0bd38d28e5ff6bd43bc13a0252333f9985485cbd5ed49f3c79d2960","0x0000000000000000000000000000000000000000000000000000000000000000","0x0431bde82d7b634dad31fcd24e160d887ebf22c01e68a0d349be8ff327aa"]}
 ```
 
-* SUBMIT
+# SUBMIT
 
 ```
 010.000.002.015.44722-107.161.024.142.08888: POST 
@@ -57,7 +73,7 @@ Content-Type: text/plain; charset=utf-8
 {"id":14,"jsonrpc":"2.0","result":true}`
 ```
 
-* Sending hashrate to node ?
+# Sending hashrate to node ?
 
 ```
 SubmitHashrate can be used for remote miners to submit their hash rate. This enables the node to report the combined

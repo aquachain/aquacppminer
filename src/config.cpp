@@ -175,7 +175,7 @@ bool createConfigFile(std::string &log) {
 	bool refreshRateOk = false;
 	while (!refreshRateOk) {
 		std::cin.clear();
-		std::cout << "Enter refresh rate (ex: 1s, 2.5m) " << std::endl;
+		std::cout << "Enter refresh rate, ex: 1s, 2.5m (recommended value is 1s): " << std::endl;
 		std::string refreshRateStr;
 		std::getline(std::cin, refreshRateStr);
 		auto res = parseRefreshRate(refreshRateStr);
