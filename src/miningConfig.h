@@ -10,6 +10,7 @@ struct MiningConfig {
 
 	std::string getWorkUrl;
 	std::string submitWorkUrl;
+	std::string submitWorkUrl2;
 	std::string fullNodeUrl;
 
 	std::string defaultSubmitWorkUrl;

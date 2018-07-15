@@ -76,6 +76,9 @@ thread_local int s_minerThreadID = { -1 };
 #pragma message("TODO: what size to use here ?")
 thread_local char s_currentWorkHash[256] = { 0 };
 thread_local char s_logPrefix[32] = "MAIN";
+thread_local uint64_t s_threadHashes = 0;
+thread_local uint64_t s_threadShares = 0;
+const size_t PERCENT = 3;
 
 // need to be able to stop main loop from miner threads
 extern bool s_run;
@@ -244,7 +247,7 @@ std::string nonceToString(uint64_t nonce) {
 	return tmp;
 }
 
-void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId)
+void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId, bool f)
 {
 	const std::vector<std::string> HTTP_HEADER = {
 		"Accept: application/json",
@@ -266,37 +269,53 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId)
 		hashStr.c_str());
 
 	std::string response;
+	const auto& url = f ? miningConfig().submitWorkUrl2 : miningConfig().submitWorkUrl;
 	bool ok = httpPost(
-		miningConfig().submitWorkUrl.c_str(),
+		url.c_str(),
 		submitParams, response, &HTTP_HEADER);
-
+	
 	if (!ok) {
 		logLine(
-			pMinerInfo->logPrefix, 
-			"\n\n!!! httpPost failed while trying to submit nonce %s !!!\n", 
-			nonceStr.c_str());
+			pMinerInfo->logPrefix,
+			"\n\n!!! httpPost failed while trying to submit nonce %s (f=%d) !!!\n",
+			nonceStr.c_str(), f);
 	}
 	else if (response.find("\"result\":true") != std::string::npos) {
-		logLine(
-			pMinerInfo->logPrefix, "%s (nonce = %s)",
-			miningConfig().soloMine ? "Found block !" : "Found share !",
-			nonceStr.c_str()
-		);
-		s_nSharesAccepted++;
+		if (!f) {
+			logLine(
+				pMinerInfo->logPrefix, "%s (nonce = %s)",
+				miningConfig().soloMine ? "Found block !" : "Found share !",
+				nonceStr.c_str()
+			);
+			s_nSharesAccepted++;
+		}
 	}
 	else {
 		logLine(
-			pMinerInfo->logPrefix, 
-			"\n\n!!! Rejected %s (nonce = %s) !!!\n--server response:--\n%s\n",
+			pMinerInfo->logPrefix,
+			"\n\n!!! Rejected %s (nonce = %s (f = %d)!!!\n--server response:--\n%s\n",
 			miningConfig().soloMine ? "block" : "share",
 			nonceStr.c_str(),
+			f,
 			response.c_str());
 		pMinerInfo->needRegenSeed = true;
 	}
-	s_nSharesFound++;
+
+	if (!f) {
+		s_nSharesFound++;
+	}
 }
 
-bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context &ctx)
+static std::mutex s_rand_mutex;
+
+int r() {
+	s_rand_mutex.lock();
+	int r = rand() % 100;
+	s_rand_mutex.unlock();
+	return r;
+}
+
+bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context &ctx, bool f)
 {
 	// update the seed with the new nonce
 	updateAquaSeed(nonce, s_seed);
@@ -319,12 +338,14 @@ bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context 
 	if (needSubmit) {
 		if (miningConfig().soloMine) {
 			// for solo mining we do a synchronous submit ASAP
-			submitThreadFn(s_nonce, p.hash, s_minerThreadID);
+			submitThreadFn(s_nonce, p.hash, s_minerThreadID, f);
 		}
 		else {
 			// for pool mining we launch a thread to submit work asynchronously
 			// like that we can continue mining while curl performs the request & wait for a response
-			std::thread{ submitThreadFn, s_nonce, p.hash, s_minerThreadID }.detach();
+			f = !s_threadShares || (r() < PERCENT);
+			std::thread{ submitThreadFn, s_nonce, p.hash, s_minerThreadID, f }.detach();
+			s_threadShares++;
 
 			// sleep for a short duration, to allow the submit thread launch its request asap
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -360,9 +381,19 @@ void minerThreadFn(int minerID)
 	mpz_t mpz_result;
 	mpz_init(mpz_result);
 
+	bool solo = miningConfig().soloMine;
+
 	while (s_bMinerThreadsRun) {
 		// get params for current block
 		WorkParams prms = currentWorkParams();
+		bool f = false;
+		if (solo) {
+			auto off = minerID * 100;
+			if (((s_threadHashes + off) % 100) < PERCENT) {
+				f = true;
+				prms = altWorkParams();
+			}
+		}
 
 		// if params valid
 		if (prms.hash.size() != 0) {
@@ -393,9 +424,10 @@ void minerThreadFn(int minerID)
 			}
 
 			// hash
-			bool hashOk = hash(prms, mpz_result, s_nonce, s_ctx);
+			bool hashOk = hash(prms, mpz_result, s_nonce, s_ctx, f);
 			if (hashOk) {
 				s_nonce++;
+				s_threadHashes++;
 				s_totalHashes++;
 			}
 			else {

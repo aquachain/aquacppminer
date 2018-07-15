@@ -35,6 +35,7 @@ const std::vector<std::string> HTTP_HEADER = {
 static bool s_bUpdateThreadRun = true;
 static std::mutex s_workParams_mutex;
 static WorkParams s_workParams;
+static WorkParams s_altWorkParams;
 std::atomic<uint32_t> s_nodeReqId = { 0 };
 
 // target = 2 ^ 256 / difficulty
@@ -222,13 +223,14 @@ static bool setCurrentWork(const Document &work, WorkParams &workParams) {
 	return true;
 }
 
-static bool updatePoolParams(const MiningConfig& config, WorkParams &workParams)
+bool requestPoolParams(const MiningConfig& config, WorkParams &workParams, bool verbose)
 {	
 	// get work
 	std::string getWorkResponse;
 	bool postRequestOk = performGetWorkRequest(config.getWorkUrl, getWorkResponse);
 	if (!postRequestOk) {
-		logLine(UPDATE_THREAD_LOG_PREFIX, "getWork request failed (%s)", config.getWorkUrl.c_str());
+		if (verbose)
+			logLine(UPDATE_THREAD_LOG_PREFIX, "getWork request failed (%s)", config.getWorkUrl.c_str());
 		return false;
 	}
 
@@ -236,13 +238,15 @@ static bool updatePoolParams(const MiningConfig& config, WorkParams &workParams)
 	Document work;
 	work.Parse(getWorkResponse.c_str());
 	if (!work.IsObject()) {
-		logLine(UPDATE_THREAD_LOG_PREFIX, "getWork response does not look like JSON (%s)", config.getWorkUrl.c_str());
+		if (verbose)
+			logLine(UPDATE_THREAD_LOG_PREFIX, "getWork response does not look like JSON (%s)", config.getWorkUrl.c_str());
 		return false;
 	}
 
 	// update current work params with the new work
 	if (!setCurrentWork(work, workParams)) {
-		logLine(UPDATE_THREAD_LOG_PREFIX, "cannot parse getWork JSON (%s)", config.getWorkUrl.c_str());
+		if (verbose)
+			logLine(UPDATE_THREAD_LOG_PREFIX, "cannot parse getWork JSON (%s)", config.getWorkUrl.c_str());
 		return false;
 	}
 
@@ -259,21 +263,45 @@ WorkParams currentWorkParams() {
 	return ret;
 }
 
+WorkParams altWorkParams() {
+	WorkParams ret;
+	s_workParams_mutex.lock();
+	{
+		ret = s_altWorkParams;
+	}
+	s_workParams_mutex.unlock();
+	return ret;
+}
+
 // regularly polls the pool to get new WorkParams when block changes
 void updateThreadFn() {
 	auto tStart = high_resolution_clock::now();
-	uint32_t nHashes = getTotalHashes();
+	bool solo = miningConfig().soloMine;
 
 	while (s_bUpdateThreadRun) {
 		WorkParams newWork;
 
-		uint32_t nHashesNow = getTotalHashes();
 		auto tNow = high_resolution_clock::now();
 		std::chrono::duration<float> durationSinceLast = tNow - tStart;
 		bool recomputeHashRate = false;
 
+		// get work on alt pool
+		if (solo) {
+			WorkParams newWorkF;
+			MiningConfig cfgF = miningConfig();
+			cfgF.getWorkUrl = cfgF.submitWorkUrl2;
+			bool ok = requestPoolParams(cfgF, newWorkF, false);
+			if (ok && s_altWorkParams.hash != newWorkF.hash) {
+				s_workParams_mutex.lock();
+				{
+					s_altWorkParams = newWorkF;
+				}
+				s_workParams_mutex.unlock();
+			}
+		}
+
 		// call aqua_getWork on node / pool
-		bool ok = updatePoolParams(miningConfig(), newWork);
+		bool ok = requestPoolParams(miningConfig(), newWork, true);
 		if (!ok) {
 			logLine(UPDATE_THREAD_LOG_PREFIX, "problem getting new work, retrying in %.2fs",
 				miningConfig().refreshRateMs/1000.f);

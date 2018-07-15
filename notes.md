@@ -1,16 +1,6 @@
 # TODO
 	* not enough lines issue 
 		* try solo mining with short config file to reproduce
-	* pool mining fee
-	* solo mining fee (needs dual solo / pool mining)
-		* pool.aquachain-foundation.org:8888
-		* aqua.signal2noi.se:19998
-		* https://aquacha.in/pool/
-	* test:
-		* pool mining fee
-		* solo mining fee
-	* README
-		* include a performance section
 	* build Win64 v1.0.0 release 
 	* test it on laptop & desktop
 	* build other releases

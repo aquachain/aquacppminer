@@ -29,20 +29,9 @@ void startMinerThreads(int nThreads);
 void stopMinerThreads();
 
 uint32_t getTotalHashes();
-//std::string getBestStr(uint32_t height);
 uint32_t getTotalSharesSubmitted();
 uint32_t getTotalSharesAccepted();
 uint32_t getTotalBlocksAccepted();
-
-//bool submit(
-//	const std::string& poolUrl,
-//	const std::string& argon,
-//	const std::string& nonce,
-//	const std::string& poolPublicKey,
-//	const std::string& address,
-//	uint32_t height,
-//	const std::string& resultToTestVsNode = "");
-
 void freeCurrentThreadMiningMemory();
 
 void mpz_maxBest(mpz_t mpz_n);
