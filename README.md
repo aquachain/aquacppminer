@@ -10,6 +10,14 @@ Download [latest binaries](https://bitbucket.org/cryptogone/aquacppminer/downloa
 
 Use a tool like CPUZ to see if your CPU supports AVX / AVX2
 
+### Installation
+On Linux you need to install required packages first
+
+    ubuntu : sudo apt-get install libssl-dev libcurl3
+    redhat : sudo yum install libcurl-devel gmp-devel openssl-devel
+
+Other platforms, just unzip to a folder and launch
+
 ### Config file
 * First time you launch the miner it will ask for configuration and store it into config.cfg. 
 * You can edit this file later if you want, delete config.cfg and relaunch the miner to restart configuration
