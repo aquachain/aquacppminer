@@ -230,7 +230,7 @@ bool requestPoolParams(const MiningConfig& config, WorkParams &workParams, bool 
 	bool postRequestOk = performGetWorkRequest(config.getWorkUrl, getWorkResponse);
 	if (!postRequestOk) {
 		if (verbose)
-			logLine(UPDATE_THREAD_LOG_PREFIX, "getWork request failed (%s)", config.getWorkUrl.c_str());
+			logLine(UPDATE_THREAD_LOG_PREFIX, "Pool not responding (%s)", config.getWorkUrl.c_str());
 		return false;
 	}
 
@@ -238,15 +238,16 @@ bool requestPoolParams(const MiningConfig& config, WorkParams &workParams, bool 
 	Document work;
 	work.Parse(getWorkResponse.c_str());
 	if (!work.IsObject()) {
-		if (verbose)
-			logLine(UPDATE_THREAD_LOG_PREFIX, "getWork response does not look like JSON (%s)", config.getWorkUrl.c_str());
+		if (verbose) {
+			logLine(UPDATE_THREAD_LOG_PREFIX, "Cannot get work params from pool (%s)", config.getWorkUrl.c_str());
+		}
 		return false;
 	}
 
 	// update current work params with the new work
 	if (!setCurrentWork(work, workParams)) {
 		if (verbose)
-			logLine(UPDATE_THREAD_LOG_PREFIX, "cannot parse getWork JSON (%s)", config.getWorkUrl.c_str());
+			logLine(UPDATE_THREAD_LOG_PREFIX, "Error parsing pool work params (%s)\n%s\n", config.getWorkUrl.c_str(), getWorkResponse.c_str());
 		return false;
 	}
 
@@ -303,8 +304,11 @@ void updateThreadFn() {
 		// call aqua_getWork on node / pool
 		bool ok = requestPoolParams(miningConfig(), newWork, true);
 		if (!ok) {
-			logLine(UPDATE_THREAD_LOG_PREFIX, "problem getting new work, retrying in %.2fs",
-				miningConfig().refreshRateMs/1000.f);
+			const auto POOL_ERROR_WAIT_N_SECONDS = 30;
+			logLine(UPDATE_THREAD_LOG_PREFIX, "problem getting new work, retrying in %ds",
+				POOL_ERROR_WAIT_N_SECONDS);
+
+			std::this_thread::sleep_for(std::chrono::seconds(POOL_ERROR_WAIT_N_SECONDS));
 		}
 		else {
 			// we have new work (a new block)

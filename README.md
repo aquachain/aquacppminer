@@ -29,7 +29,7 @@ Other platforms, just unzip to a folder and launch
         -F url        : url of pool or node to mine on, if not specified, will pool mine to dev's aquabase
         -t nThreads   : number of threads to use (if not specified will use maximum logical threads available)
         -n node_url   : optional node url, to get more stats (pool mining only)
-        -r rate       : pool refresh rate, ex: 1s, 2.5m, default is 1s
+        -r rate       : pool refresh rate, ex: 3s, 2.5m, default is 3s
         --solo        : solo mining, -F needs to be the node url
         -h            : display this help message and exit
 

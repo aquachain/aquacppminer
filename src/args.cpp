@@ -17,7 +17,7 @@ static const std::string s_usageMsg =
 "  -F url        : url of pool or node to mine on, if not specified, will pool mine to dev's aquabase\n"
 "  -t nThreads   : number of threads to use (if not specified will use maximum logical threads available)\n"
 "  -n node_url   : optional node url, to get more stats (pool mining only)\n"
-"  -r rate       : pool refresh rate, ex: 1s, 2.5m, default is 1s\n"
+"  -r rate       : pool refresh rate, ex: 3s, 2.5m, default is 3s\n"
 "  --solo        : solo mining, -F needs to be the node url\n"
 "  -h            : display this help message and exit\n"
 ;

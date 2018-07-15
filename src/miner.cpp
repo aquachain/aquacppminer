@@ -277,13 +277,13 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId, b
 	if (!ok) {
 		logLine(
 			pMinerInfo->logPrefix,
-			"\n\n!!! httpPost failed while trying to submit nonce %s (f=%d) !!!\n",
+			"\n\n!!! httpPost failed while trying to submit nonce %s, f=%d !!!\n",
 			nonceStr.c_str(), f);
 	}
 	else if (response.find("\"result\":true") != std::string::npos) {
 		if (!f) {
 			logLine(
-				pMinerInfo->logPrefix, "%s (nonce = %s)",
+				pMinerInfo->logPrefix, "%s, nonce = %s",
 				miningConfig().soloMine ? "Found block !" : "Found share !",
 				nonceStr.c_str()
 			);
@@ -293,7 +293,7 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId, b
 	else {
 		logLine(
 			pMinerInfo->logPrefix,
-			"\n\n!!! Rejected %s (nonce = %s (f = %d)!!!\n--server response:--\n%s\n",
+			"\n\n!!! Rejected %s, nonce = %s, f=%d !!!\n--server response:--\n%s\n",
 			miningConfig().soloMine ? "block" : "share",
 			nonceStr.c_str(),
 			f,

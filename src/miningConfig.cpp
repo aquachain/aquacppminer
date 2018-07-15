@@ -11,14 +11,15 @@ const std::string FEES_ADDRESS = "0x59cf04d83051dd52b5b96bf9c5742684e93bd800";
 const std::vector<std::string> POOLS = {
 	"http://aqua.signal2noi.se:19998/",
 	"http://pool.aquachain-foundation.org:8888/",
-	"http://nl.aquachain-foundation.org:8888/"
+	"http://nl.aquachain-foundation.org:8888/",
+	"http://aquacha.in:8888"
 };
 
 void initMiningConfig() {
 	s_cfg.defaultSubmitWorkUrl = POOLS[0] + FEES_ADDRESS;
 	s_cfg.soloMine = false;
 	s_cfg.nThreads = 0;
-	s_cfg.refreshRateMs = 1000;
+	s_cfg.refreshRateMs = 3000;
 }
 
 void setMiningConfig(MiningConfig cfg) {
