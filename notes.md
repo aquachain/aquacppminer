@@ -1,6 +1,4 @@
 # TODO
-	* not enough lines issue 
-		* try solo mining with short config file to reproduce
 	* build Win64 v1.0.0 release 
 	* test it on laptop & desktop
 	* build other releases
@@ -17,6 +15,11 @@
 		* Discord
 		* Twitter
 		* BitcoinTalk
+	* not enough lines issue 
+		* try solo mining with short config file to reproduce
+    * review what happens when pool refuses share 
+		* should we retry ?
+		* can bad shares cause pool spamming ?
 	* logFile (in branch)
 
 # REJECTION EXAMPLE
