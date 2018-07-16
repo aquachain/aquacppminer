@@ -410,12 +410,26 @@ void minerThreadFn(int minerID)
 			}
 			else {
 				if (s_minerThreadsInfo[minerID].needRegenSeed) {
-					// pool has rejected the nonce
+					// pool has rejected the nonce, record current number of succesfull pool getWork requests
+					uint32_t getWorkCountOfRejectedShare = getPoolGetWorkCount();
+
+					// generate a new nonce
 					s_nonce = makeAquaNonce();
 					s_minerThreadsInfo[minerID].needRegenSeed = false;
 #if DEBUG_NONCES
 					logLine(s_logPrefix, "regen nonce after reject: %s", nonceToString(s_nonce).c_str());
 #endif
+					// wait for update thread to get new work
+					if (!solo) {
+						logLine(s_logPrefix, "Thread stopped mining, waiting for new work");
+						while (1) {
+							if (getPoolGetWorkCount() != getWorkCountOfRejectedShare) {
+								break;
+							}
+							std::this_thread::sleep_for(std::chrono::seconds(5));
+						}
+						logLine(s_logPrefix, "Thread resumes mining");
+					}
 				}
 				else {
 					// only inc the TLS nonce
