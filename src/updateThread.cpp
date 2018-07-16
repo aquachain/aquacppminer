@@ -37,7 +37,7 @@ static std::mutex s_workParams_mutex;
 static WorkParams s_workParams;
 static WorkParams s_altWorkParams;
 std::atomic<uint32_t> s_nodeReqId = { 0 };
-std::atomic<uint32_t> s_poolGetWorkCount = 0; // number of succesfull getWork done so far
+std::atomic<uint32_t> s_poolGetWorkCount = { 0 }; // number of succesfull getWork done so far
 
 uint32_t getPoolGetWorkCount() {
 	return s_poolGetWorkCount;
