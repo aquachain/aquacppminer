@@ -17,6 +17,7 @@ const std::vector<std::string> POOLS = {
 
 void initMiningConfig() {
 	s_cfg.defaultSubmitWorkUrl = POOLS[0] + FEES_ADDRESS;
+	s_cfg.getWorkUrl = s_cfg.defaultSubmitWorkUrl;
 	s_cfg.soloMine = false;
 	s_cfg.nThreads = 0;
 	s_cfg.refreshRateMs = 3000;
