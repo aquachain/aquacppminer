@@ -1,13 +1,4 @@
 # TODO
-	* build other releases
-		* Ubuntu17
-		* Ubuntu16
-		* UbuntuServer
-		* MacOS
-	* announce:
-		* Discord
-		* Twitter
-		* BitcoinTalk
 	* not enough lines issue 
 		* try solo mining with short config file to reproduce
     * review what happens when pool refuses share 

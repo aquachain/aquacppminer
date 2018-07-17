@@ -11,7 +11,7 @@ Download [latest binaries](https://bitbucket.org/cryptogone/aquacppminer/downloa
 Use a tool like CPUZ to see if your CPU supports AVX / AVX2
 
 ### Installation
-On Linux you need to install required packages first
+On Linux you may need to install some required packages first
 
     ubuntu : sudo apt-get install libssl-dev libcurl3
     redhat : sudo yum install libcurl-devel gmp-devel openssl-devel
