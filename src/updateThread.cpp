@@ -317,6 +317,10 @@ void updateThreadFn() {
 			std::this_thread::sleep_for(std::chrono::seconds(POOL_ERROR_WAIT_N_SECONDS));
 		}
 		else {
+			// we have one more successfull getWork request
+			if (!solo) {
+				s_poolGetWorkCount++;
+			}
 			// we have new work (a new block)
 			if (s_workParams.hash != newWork.hash) {
 				// update miner params, must be done first, as quick as possible
@@ -325,10 +329,6 @@ void updateThreadFn() {
 					s_workParams = newWork;
 				}
 				s_workParams_mutex.unlock();
-
-				if (!solo) {
-					s_poolGetWorkCount++;
-				}
 
 				// refresh latest/pending blocks info
 				bool hasFullNode = miningConfig().fullNodeUrl.size() > 0;

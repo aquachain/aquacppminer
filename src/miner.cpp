@@ -421,7 +421,7 @@ void minerThreadFn(int minerID)
 #endif
 					// wait for update thread to get new work
 					if (!solo) {
-						logLine(s_logPrefix, "Thread stopped mining, waiting for new work");
+						logLine(s_logPrefix, "Thread stopped mining because last share rejected, waiting for new work from pool");
 						while (1) {
 							if (getPoolGetWorkCount() != getWorkCountOfRejectedShare) {
 								break;

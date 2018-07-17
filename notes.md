@@ -1,16 +1,9 @@
 # TODO
-	* build Win64 v1.0.0 release 
-	* test it on laptop & desktop
 	* build other releases
 		* Ubuntu17
 		* Ubuntu16
 		* UbuntuServer
 		* MacOS
-	* test other releases
-		* Mac Box
-		* Linux Box
-		* VMs
-	* make repo public
 	* announce:
 		* Discord
 		* Twitter
