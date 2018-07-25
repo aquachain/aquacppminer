@@ -25,6 +25,7 @@ Other platforms, just unzip to a folder and launch
 ### Build
 * all commands below need to be launched from the repo folder in a shell (github console on Windows, bash & friends on others)
 * on linux you first need to install some packages (see installation section)
+* on Windows you need to have Visual Studio 2015 installed (community version is ok)
 * launch ./build/setup_linux.sh, ./build/setup_windows.sh or ./build/setup_linux.sh, depending on your platform
 * launch ./build/make_release_linux.sh, ./build/make_release_windows.sh, ./build/make_release_mac.sh, depending on your platform
 * if build succesfull, binaries will be in the rel/ folder
