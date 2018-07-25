@@ -18,4 +18,4 @@ golang/debug
 golang/*.exe
 docs/
 BLAKE2/
-premake5.lua
+/premake5.lua
