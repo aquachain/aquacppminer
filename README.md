@@ -18,6 +18,13 @@ On Linux you may need to install some required packages first
 
 Other platforms, just unzip to a folder and launch
 
+### Build
+* all commands below need to be launched from the repo folder in a shell (github console on Windows, bash & friends on others)
+* on linux you first need to install some packages (see installation section)
+* launch ./build/setup_linux.sh, ./build/setup_windows.sh or ./build/setup_linux.sh, depending on your platform
+* launch ./build/make_release_linux.sh, ./build/make_release_windows.sh, ./build/make_release_mac.sh, depending on your platforms
+* if build succesfull, binaries will be in the rel/ folder
+
 ### Config file
 * First time you launch the miner it will ask for configuration and store it into config.cfg. 
 * You can edit this file later if you want, delete config.cfg and relaunch the miner to restart configuration
