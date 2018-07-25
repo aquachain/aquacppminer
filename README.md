@@ -15,9 +15,9 @@ Use a tool like CPUZ to see if your CPU supports AVX / AVX2
 * 1.1: fix occasional bad shares, linux/win/macOS build scripts
 
 ### Installation
-On Linux you may need to install some required packages first
+On Linux you may need to install some required packages first in order to build
 
-    ubuntu : sudo apt-get install libssl-dev libcurl3
+    ubuntu : sudo apt-get install libssl-dev libcurl4-gnutls-dev libgmp-dev
     redhat : sudo yum install libcurl-devel gmp-devel openssl-devel
 
 Other platforms, just unzip to a folder and launch
@@ -26,7 +26,7 @@ Other platforms, just unzip to a folder and launch
 * all commands below need to be launched from the repo folder in a shell (github console on Windows, bash & friends on others)
 * on linux you first need to install some packages (see installation section)
 * launch ./build/setup_linux.sh, ./build/setup_windows.sh or ./build/setup_linux.sh, depending on your platform
-* launch ./build/make_release_linux.sh, ./build/make_release_windows.sh, ./build/make_release_mac.sh, depending on your platforms
+* launch ./build/make_release_linux.sh, ./build/make_release_windows.sh, ./build/make_release_mac.sh, depending on your platform
 * if build succesfull, binaries will be in the rel/ folder
 
 ### Config file
