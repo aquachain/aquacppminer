@@ -239,12 +239,17 @@ void setupAquaArgonCtx(
 }
 
 std::string nonceToString(uint64_t nonce) {
+	// raw hex value
 	char tmp[256];
-	snprintf(tmp, sizeof(tmp),"0x%" PRIx64, nonce);
-	if (strlen(tmp) & 1) {
-		snprintf(tmp, sizeof(tmp), "0x0%" PRIx64, nonce);
+	snprintf(tmp, sizeof(tmp),"%" PRIx64, nonce);
+	// pad with zeroes
+	std::string res(tmp);
+	while (res.size() < 16) {
+		res = std::string("0") + res;
 	}
-	return tmp;
+	// must start with 0x
+	res = std::string("0x") + res;
+	return res;
 }
 
 void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId, bool f)

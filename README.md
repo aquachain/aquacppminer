@@ -10,6 +10,10 @@ Download [latest binaries](https://bitbucket.org/cryptogone/aquacppminer/downloa
 
 Use a tool like CPUZ to see if your CPU supports AVX / AVX2
 
+### Versions
+* 1.0: initial release
+* 1.1: fix occasional bad shares, linux/win/macOS build scripts
+
 ### Installation
 On Linux you may need to install some required packages first
 
