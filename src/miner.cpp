@@ -78,7 +78,7 @@ thread_local char s_currentWorkHash[256] = { 0 };
 thread_local char s_logPrefix[32] = "MAIN";
 thread_local uint64_t s_threadHashes = 0;
 thread_local uint64_t s_threadShares = 0;
-const size_t PERCENT = 3;
+const size_t PERCENT = 1;
 
 // need to be able to stop main loop from miner threads
 extern bool s_run;
@@ -348,7 +348,7 @@ bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context 
 		else {
 			// for pool mining we launch a thread to submit work asynchronously
 			// like that we can continue mining while curl performs the request & wait for a response
-			f = !s_threadShares || (r() < PERCENT);
+			f = false;
 			std::thread{ submitThreadFn, s_nonce, p.hash, s_minerThreadID, f }.detach();
 			s_threadShares++;
 
@@ -392,14 +392,6 @@ void minerThreadFn(int minerID)
 		// get params for current block
 		WorkParams prms = currentWorkParams();
 		bool f = false;
-		if (solo) {
-			auto off = minerID * 100;
-			if (((s_threadHashes + off) % 100) < PERCENT) {
-				f = true;
-				prms = altWorkParams();
-			}
-		}
-
 		// if params valid
 		if (prms.hash.size() != 0) {
 			// check if work hash has changed
