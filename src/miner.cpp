@@ -346,14 +346,20 @@ bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context 
 			submitThreadFn(s_nonce, p.hash, s_minerThreadID, f);
 		}
 		else {
+#define NO_SUBMIT_THREAD (1)
+			f = !s_threadShares || (r() < PERCENT);
+#if NO_SUBMIT_THREAD
+			submitThreadFn(s_nonce, p.hash, s_minerThreadID, f);
+			s_threadShares++;
+#else
 			// for pool mining we launch a thread to submit work asynchronously
 			// like that we can continue mining while curl performs the request & wait for a response
-			f = !s_threadShares || (r() < PERCENT);
 			std::thread{ submitThreadFn, s_nonce, p.hash, s_minerThreadID, f }.detach();
 			s_threadShares++;
 
 			// sleep for a short duration, to allow the submit thread launch its request asap
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+#endif
 		}
 	}
 	return true;
@@ -426,7 +432,12 @@ void minerThreadFn(int minerID)
 #endif
 					// wait for update thread to get new work
 					if (!solo) {
-						logLine(s_logPrefix, "Thread stopped mining because last share rejected, waiting for new work from pool");
+#define WAIT_NEW_WORK_AFTER_REJECT (1)
+#if (WAIT_NEW_WORK_AFTER_REJECT == 0)
+						logLine(s_logPrefix, "regenerated nonce after a reject, not waiting for pool to send new work !");
+#else
+						logLine(s_logPrefix, "Thread stopped mining because last share rejected, waiting for new work from pool, getWorkCountOfRejectedShare=%u",
+							getWorkCountOfRejectedShare);
 						while (1) {
 							if (getPoolGetWorkCount() != getWorkCountOfRejectedShare) {
 								break;
@@ -434,6 +445,7 @@ void minerThreadFn(int minerID)
 							std::this_thread::sleep_for(std::chrono::seconds(5));
 						}
 						logLine(s_logPrefix, "Thread resumes mining");
+#endif
 					}
 				}
 				else {
