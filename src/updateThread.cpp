@@ -308,7 +308,7 @@ void updateThreadFn() {
 		}
 
 		//
-		logLine(UPDATE_THREAD_LOG_PREFIX, "requestPoolParams START, s_poolGetWorkCount=%u", s_poolGetWorkCount);
+		logLine(UPDATE_THREAD_LOG_PREFIX, "requestPoolParams START, s_poolGetWorkCount=%u", getPoolGetWorkCount());
 
 		// call aqua_getWork on node / pool
 		bool ok = requestPoolParams(miningConfig(), newWork, true);
@@ -323,7 +323,7 @@ void updateThreadFn() {
 			// we have one more successfull getWork request
 			if (!solo) {
 				s_poolGetWorkCount++;
-				logLine(UPDATE_THREAD_LOG_PREFIX, "requestPoolParams OK, s_poolGetWorkCount=%u", s_poolGetWorkCount);
+				logLine(UPDATE_THREAD_LOG_PREFIX, "requestPoolParams OK, s_poolGetWorkCount=%u", getPoolGetWorkCount());
 			}
 			// we have new work (a new block)
 			if (s_workParams.hash != newWork.hash) {
