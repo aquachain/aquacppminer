@@ -78,6 +78,8 @@ bool httpGetString(const string& url, string& out)
 
 // inspired from: https://raw.githubusercontent.com/curl/curl/master/docs/examples/postinmemory.c
 
+thread_local CURL* s_curlHandle = nullptr;
+
 // ex: httpPostUrlEncodedRaw("http://www.example.org/", "Field=1&Field=2&Field=3")
 bool httpPost(
 	const std::string& url,
@@ -92,7 +94,10 @@ bool httpPost(
 	chunk.memory = (char*)malloc(1);  /* will be grown as needed by realloc above */
 	chunk.size = 0;                   /* no data at this point */
 
-	CURL *curlHandle = curl_easy_init();
+	if (!s_curlHandle) {
+		s_curlHandle = curl_easy_init();
+	}
+	CURL *curlHandle = s_curlHandle;
 	if (curlHandle) {
 		// A parameter set to 1 tells libcurl to do a regular HTTP post. This will also make the library use a "Content-Type: application/x-www-form-urlencoded" header. 
 		curl_easy_setopt(curlHandle, CURLOPT_POST, 1L);
@@ -122,7 +127,7 @@ bool httpPost(
 			out = std::string(bytes.data(), bytes.data() + bytes.size());
 		}
 
-		curl_easy_cleanup(curlHandle);
+		//curl_easy_cleanup(curlHandle);
 	}
 
 	free(chunk.memory);
