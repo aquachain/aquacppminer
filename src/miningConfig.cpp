@@ -12,7 +12,10 @@ const std::vector<std::string> POOLS = {
 	"http://aqua.signal2noi.se:19998/",
 	"http://pool.aquachain-foundation.org:8888/",
 	"http://nl.aquachain-foundation.org:8888/",
-	"http://aquacha.in:8888/"
+	"http://aquacha.in:8888/",
+	"http://aquapool.rplant.xyz:19998/",
+	"http://aqua.cnpool.vip:8888/",
+	"http://aqua.dapool.me:3333/"
 };
 
 void initMiningConfig() {

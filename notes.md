@@ -1,9 +1,18 @@
+# TODO v1.2
+	OK limit http connections (1 for updater, 1 for submit)
+	* -argon x,y,z flag
+	* -hf7 flag (priority over -argon flag)
+	* update README with new parameters
 # TODO
+	* ARM support
+		=> make sure optimization path taken
+	* AVX512F support
+		=> make sure optimization path taken
+	* intensity option
 	* not enough lines issue 
 		* try solo mining with short config file to reproduce
     * review what happens when pool refuses share 
 		* should we retry ?
-		* can bad shares cause pool spamming ?
 	* logFile (in branch)
 
 # REJECTION EXAMPLE

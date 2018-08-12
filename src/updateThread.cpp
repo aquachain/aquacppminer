@@ -18,6 +18,7 @@
 #include "hex_encode_utils.h"
 
 #include <atomic>
+#include <map>
 
 #undef GetObject
 
@@ -39,6 +40,8 @@ static WorkParams s_altWorkParams;
 std::atomic<uint32_t> s_nodeReqId = { 0 };
 std::atomic<uint32_t> s_poolGetWorkCount = { 0 }; // number of succesfull getWork done so far
 
+static std::map<std::string, http_connection_handle_t> s_httpHandles;
+
 uint32_t getPoolGetWorkCount() {
 	return s_poolGetWorkCount;
 }
@@ -59,6 +62,16 @@ void computeDifficulty(mpz_t mpz_target, mpz_t &mpz_difficulty) {
 	mpz_div(mpz_difficulty, mpz_numerator, mpz_target);
 }
 
+http_connection_handle_t getHandle(const std::string &url) {
+	if (s_httpHandles.find(url) == s_httpHandles.end()) {
+		s_httpHandles.insert(std::make_pair(url, newHttpConnectionHandle()));
+#ifdef _DEBUG
+		printf("\n===> new http handle for %s\n\n", url.c_str());
+#endif
+	}
+	return s_httpHandles[url];
+}
+
 static bool performGetWorkRequest(const std::string &nodeUrl, std::string &response) 
 {
 	char getWorkParams[512];
@@ -66,9 +79,8 @@ static bool performGetWorkRequest(const std::string &nodeUrl, std::string &respo
 		getWorkParams, 
 		sizeof(getWorkParams), 
 		"{\"jsonrpc\":\"2.0\", \"id\" : %d, \"method\" : \"aqua_getWork\", \"params\" : null}",
-		s_nodeReqId++);
-	
-	return httpPost(nodeUrl, getWorkParams, response, &HTTP_HEADER);
+		s_nodeReqId++);	
+	return httpPost(getHandle(nodeUrl), nodeUrl, getWorkParams, response, &HTTP_HEADER);
 }
 
 typedef struct {
@@ -131,7 +143,7 @@ static bool getBlocksInfo(const std::string &nodeUrl, t_blocksInfo &result)
 			blockNum.c_str());
 		
 		std::string resp;
-		if (!httpPost(nodeUrl, getPendingBlockParams, resp, &HTTP_HEADER))
+		if (!httpPost(getHandle(nodeUrl), nodeUrl, getPendingBlockParams, resp, &HTTP_HEADER))
 			return false;
 
 		std::vector<std::string> params;
@@ -331,10 +343,11 @@ void updateThreadFn() {
 				s_workParams_mutex.unlock();
 
 				// refresh latest/pending blocks info
-				bool hasFullNode = miningConfig().fullNodeUrl.size() > 0;
+				auto cfg = miningConfig();
+				bool hasFullNode = cfg.fullNodeUrl.size() > 0;
 				std::string queryUrl = hasFullNode ?
-					miningConfig().fullNodeUrl :
-					miningConfig().getWorkUrl;
+					cfg.fullNodeUrl :
+					cfg.getWorkUrl;
 
 				// building log message
 				char header[2048] = { 0 };
@@ -372,6 +385,10 @@ void updateThreadFn() {
 		}
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(miningConfig().refreshRateMs));
+	}
+
+	for (auto &it : s_httpHandles) {
+		destroyHttpConnectionHandle(it.second);
 	}
 }
 

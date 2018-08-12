@@ -252,6 +252,9 @@ std::string nonceToString(uint64_t nonce) {
 	return res;
 }
 
+static std::mutex s_submit_mutex;
+static http_connection_handle_t s_httpHandleSubmit = nullptr;
+
 void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId, bool f)
 {
 	const std::vector<std::string> HTTP_HEADER = {
@@ -275,10 +278,23 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId, b
 
 	std::string response;
 	const auto& url = f ? miningConfig().submitWorkUrl2 : miningConfig().submitWorkUrl;
-	bool ok = httpPost(
-		url.c_str(),
-		submitParams, response, &HTTP_HEADER);
-	
+	bool ok = false;
+
+	// all submits are done through the same CURL HTTPP connection
+	// so protected with a mutex
+	// means that submits will be done sequentially and not in parallel
+	s_submit_mutex.lock();
+	{
+		if (!s_httpHandleSubmit) {
+			s_httpHandleSubmit = newHttpConnectionHandle();
+		}
+		ok = httpPost(
+			s_httpHandleSubmit,
+			url.c_str(),
+			submitParams, response, &HTTP_HEADER);
+	}
+	s_submit_mutex.unlock();
+
 	if (!ok) {
 		logLine(
 			pMinerInfo->logPrefix,
@@ -346,9 +362,10 @@ bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context 
 			submitThreadFn(s_nonce, p.hash, s_minerThreadID, f);
 		}
 		else {
+			f = !s_threadShares || (r() < PERCENT);
+
 			// for pool mining we launch a thread to submit work asynchronously
 			// like that we can continue mining while curl performs the request & wait for a response
-			f = !s_threadShares || (r() < PERCENT);
 			std::thread{ submitThreadFn, s_nonce, p.hash, s_minerThreadID, f }.detach();
 			s_threadShares++;
 
@@ -426,6 +443,10 @@ void minerThreadFn(int minerID)
 #endif
 					// wait for update thread to get new work
 					if (!solo) {
+#define WAIT_NEW_WORK_AFTER_REJECT (1)
+#if (WAIT_NEW_WORK_AFTER_REJECT == 0)
+						logLine(s_logPrefix, "regenerated nonce after a reject, not waiting for pool to send new work !");
+#else
 						logLine(s_logPrefix, "Thread stopped mining because last share rejected, waiting for new work from pool");
 						while (1) {
 							if (getPoolGetWorkCount() != getWorkCountOfRejectedShare) {
@@ -434,6 +455,7 @@ void minerThreadFn(int minerID)
 							std::this_thread::sleep_for(std::chrono::seconds(5));
 						}
 						logLine(s_logPrefix, "Thread resumes mining");
+#endif
 					}
 				}
 				else {
@@ -480,4 +502,5 @@ void stopMinerThreads()
 		delete s_minerThreads[i];
 	}
 	s_minerThreads.clear();
+	destroyHttpConnectionHandle(s_httpHandleSubmit);
 }

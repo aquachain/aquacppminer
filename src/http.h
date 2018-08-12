@@ -3,8 +3,13 @@
 #include <vector>
 #include <string>
 
-bool httpGetString(const std::string& url, std::string& out);
+typedef void* http_connection_handle_t;
+
+http_connection_handle_t newHttpConnectionHandle();
+void destroyHttpConnectionHandle(http_connection_handle_t h);
+
 bool httpPost(
+	http_connection_handle_t handle,
 	const std::string& url,
 	const std::string& postData,
 	std::string& out,

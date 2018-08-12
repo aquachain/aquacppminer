@@ -54,7 +54,7 @@ const std::string ARGON_ARCH = "";
 using std::chrono::high_resolution_clock;
 
 const char* COORDINATOR_LOG_PREFIX = "MAIN";
-const std::string VERSION = "1.1";
+const std::string VERSION = "1.2";
 
 bool s_needKeyPressAtEnd = false;
 bool s_run = true;

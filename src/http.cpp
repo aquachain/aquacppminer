@@ -4,6 +4,8 @@
 #include <vector>
 #include <cstring>
 
+#include "http.h"
+
 using std::string;
 
 // inspired from https://curl.haxx.se/libcurl/c/getinmemory.html
@@ -32,54 +34,26 @@ static size_t WriteMemoryCallback(void* contents, size_t size, size_t nmemb, voi
 	return realsize;
 }
 
-// warning: adds a zero at the end !
-bool httpGetRaw(const string& url, std::vector<char>& out)
-{
-	CURL* curl_handle = curl_easy_init();
-	if (!curl_handle)
-		return false;
+http_connection_handle_t newHttpConnectionHandle() {
+	CURL* curlHandle = curl_easy_init();
+	return (http_connection_handle_t)curlHandle;
+}
 
-	CURLcode res = CURLE_FAILED_INIT;
-	struct MemoryStruct chunk = { (char*)malloc(1), 0 };
-	{
-		res = curl_easy_setopt(curl_handle, CURLOPT_URL, url.c_str());
-		assert(res == CURLE_OK);
-		res = curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
-		assert(res == CURLE_OK);
-		res = curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void*)&chunk);
-		assert(res == CURLE_OK);
-		res = curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "libcurl-agent/1.0");
-		assert(res == CURLE_OK);
-		res = curl_easy_perform(curl_handle);
-		curl_easy_cleanup(curl_handle);
-
-		if (res == CURLE_OK) {
-			out.clear();
-			out.resize(chunk.size, 0);
-			std::memcpy(out.data(), chunk.memory, chunk.size);
-		}
+void destroyHttpConnectionHandle(http_connection_handle_t h) {
+	CURL* curlHandle = (CURL*)h;
+	if (curlHandle) {
+		curl_easy_cleanup(curlHandle);
 	}
-	free(chunk.memory);
-
-	// todo: show error message on failure via: curl_easy_strerror(res));
-	return (res == CURLE_OK);
 }
 
-bool httpGetString(const string& url, string& out)
-{
-	std::vector<char> v;
-	if (!httpGetRaw(url, v))
-		return false;
 
-	const char* ptr = (const char*)v.data();
-	out = string(ptr, ptr + v.size());
-	return true;
-}
 
 // inspired from: https://raw.githubusercontent.com/curl/curl/master/docs/examples/postinmemory.c
-
 // ex: httpPostUrlEncodedRaw("http://www.example.org/", "Field=1&Field=2&Field=3")
+// warning this function will have undefined behavior if same handle is used simultaneously by multiple threads
+// (so user is responsible for thread safety)
 bool httpPost(
+	http_connection_handle_t handle,
 	const std::string& url,
 	const std::string& postData,
 	std::string& out,
@@ -88,11 +62,15 @@ bool httpPost(
 	CURLcode res = CURLE_FAILED_INIT;
 	out.clear();
 
+	if (!handle) {
+		return false;
+	}
+
 	struct MemoryStruct chunk;
 	chunk.memory = (char*)malloc(1);  /* will be grown as needed by realloc above */
 	chunk.size = 0;                   /* no data at this point */
 
-	CURL *curlHandle = curl_easy_init();
+	CURL *curlHandle = (CURL*)handle;
 	if (curlHandle) {
 		// A parameter set to 1 tells libcurl to do a regular HTTP post. This will also make the library use a "Content-Type: application/x-www-form-urlencoded" header. 
 		curl_easy_setopt(curlHandle, CURLOPT_POST, 1L);
@@ -121,8 +99,6 @@ bool httpPost(
 
 			out = std::string(bytes.data(), bytes.data() + bytes.size());
 		}
-
-		curl_easy_cleanup(curlHandle);
 	}
 
 	free(chunk.memory);
