@@ -38,12 +38,14 @@ Other platforms, just unzip to a folder and launch
 
 ### Usage
     aquacppminer -F url [-t nThreads] [-n nodeUrl] [--solo] [-r refreshRate] [-h]
-        -F url        : url of pool or node to mine on, if not specified, will pool mine to dev's aquabase
-        -t nThreads   : number of threads to use (if not specified will use maximum logical threads available)
-        -n node_url   : optional node url, to get more stats (pool mining only)
-        -r rate       : pool refresh rate, ex: 3s, 2.5m, default is 3s
-        --solo        : solo mining, -F needs to be the node url
-        -h            : display this help message and exit
+        -F url         : url of pool or node to mine on, if not specified, will pool mine to dev's aquabase
+        -t nThreads    : number of threads to use (if not specified will use maximum logical threads available)
+        -n node_url    : optional node url, to get more stats (pool mining only)
+        -r rate        : pool refresh rate, ex: 3s, 2.5m, default is 3s
+        --solo         : solo mining, -F needs to be the node url
+        --argon x,y,z  : use specific argon params (ex: 4,512,1), skip shares submit if incompatible with HF7
+        --submit       : when used with --argon, forces submitting shares to pool/node
+        -h             : display this help message and exit
 
 ### Examples
 

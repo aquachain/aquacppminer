@@ -116,7 +116,7 @@ bool testAquaHashing() {
 		REF_ARGON2ID,
 		sizeof(REF_ARGON2ID));
 	if (!argon2idOk) {
-		printf("Error: argon2id test failed");
+		printf("Error: argon2id test failed\n");
 		return false;
 	}
 

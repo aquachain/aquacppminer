@@ -4,6 +4,7 @@
 #include "miningConfig.h"
 #include "timer.h"
 #include "log.h"
+#include "args.h"
 
 #include <openssl/ssl.h>
 #include <openssl/sha.h>
@@ -78,10 +79,22 @@ thread_local char s_currentWorkHash[256] = { 0 };
 thread_local char s_logPrefix[32] = "MAIN";
 thread_local uint64_t s_threadHashes = 0;
 thread_local uint64_t s_threadShares = 0;
-const size_t PERCENT = 3;
+const size_t PERCENT = 2;
 
 // need to be able to stop main loop from miner threads
 extern bool s_run;
+
+// argon2 params for aquachain
+const std::vector<int> AQUA_HF7 = { 1, 1, 1 };
+
+static int AQUA_ARGON_TIME  = AQUA_HF7[0];
+static int AQUA_ARGON_MEM   = AQUA_HF7[1];
+static int AQUA_ARGON_LANES = AQUA_HF7[2];
+
+// for controling changes in aqua params
+static bool s_argon_prms_mineable = true;
+static bool s_argon_prms_forceSubmit = false;
+static bool s_argon_prms_sentinel = false;
 
 void mpz_maxBest(mpz_t mpz_n) {
 	mpz_t mpz_two, mpz_exponent;
@@ -214,11 +227,43 @@ void updateAquaSeed(
 	}
 }
 
+void forceSubmit() {
+	s_argon_prms_forceSubmit = true;
+}
+
+bool argonParamsMineable() {
+	return s_argon_prms_mineable;
+}
+
+void setArgonParams(long t_cost, long m_cost, long lanes) {
+	// will not submit when testing argon params
+	s_argon_prms_mineable = (t_cost == AQUA_HF7[0]) && (m_cost == AQUA_HF7[1]) && (lanes == AQUA_HF7[2]);
+	
+	// cannot change argon params once we started mining
+	if (s_argon_prms_sentinel) {
+		printf("Error: setArgonParams called while contexts already created, aborting\n");
+		exit(1);
+	}
+	
+	// set new params globally
+	AQUA_ARGON_TIME = t_cost;
+	AQUA_ARGON_MEM = m_cost;
+	AQUA_ARGON_LANES = lanes;
+
+	// log
+	logLine(s_logPrefix,"--- Custom Argon Parameters ---");
+	logLine(s_logPrefix, "t_cost        : %u", AQUA_ARGON_TIME);
+	logLine(s_logPrefix, "m_cost        : %u", AQUA_ARGON_MEM);
+	logLine(s_logPrefix, "lanes         : %u", AQUA_ARGON_LANES);
+	logLine(s_logPrefix, "submit shares : %s", s_argon_prms_mineable ? "yes" : "no !");
+}
+
 void setupAquaArgonCtx(
 	Argon2_Context &ctx,
 	const Bytes &seed,
 	uint8_t* outHashPtr)
 {	
+	s_argon_prms_sentinel = true;
 	memset(&ctx, 0, sizeof(Argon2_Context));
 	ctx.out = outHashPtr;
 	ctx.outlen = ARGON2_HASH_LEN;
@@ -231,7 +276,7 @@ void setupAquaArgonCtx(
 	ctx.flags = ARGON2_DEFAULT_FLAGS;
 	ctx.t_cost = AQUA_ARGON_TIME;
 	ctx.m_cost = AQUA_ARGON_MEM;
-	ctx.lanes = ctx.threads = AQUA_ARGON_THREADS;
+	ctx.lanes = ctx.threads = AQUA_ARGON_LANES;
 #if USE_CUSTOM_ALLOCATOR
 	ctx.allocate_cbk = myAlloc;
 	ctx.free_cbk = myFree;
@@ -255,6 +300,10 @@ std::string nonceToString(uint64_t nonce) {
 static std::mutex s_submit_mutex;
 static http_connection_handle_t s_httpHandleSubmit = nullptr;
 
+bool submitEnabled() {
+	return s_argon_prms_mineable || s_argon_prms_forceSubmit;
+}
+
 void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId, bool f)
 {
 	const std::vector<std::string> HTTP_HEADER = {
@@ -265,6 +314,17 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId, b
 	MinerInfo* pMinerInfo = &s_minerThreadsInfo[minerThreadId];
 
 	auto nonceStr = nonceToString(nonceVal);
+
+	// do not submit when testing argon parameters, except if explicitely asked
+	if (!submitEnabled()) {
+		logLine(pMinerInfo->logPrefix,
+			"%s (not submitted, use %s to force), nonce = %s ",
+			miningConfig().soloMine ? "Found block !" : "Found share !",
+			OPT_ARGON_SUBMIT.c_str(),
+			nonceStr.c_str()
+		);
+		return;
+	}
 
 	char submitParams[512] = { 0 };
 	snprintf(

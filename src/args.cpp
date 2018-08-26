@@ -2,25 +2,9 @@
 #include "inputParser.h"
 #include "miningConfig.h"
 #include "log.h"
+#include "miner.h"
 
 #include <assert.h>
-
-const std::string OPT_USAGE = "-h";
-const std::string OPT_NTHREADS = "-t";
-const std::string OPT_GETWORK_URL = "-F";
-const std::string OPT_FULLNODE_URL = "-n";
-const std::string OPT_REFRESH_RATE = "-r";
-const std::string OPT_SOLO = "--solo";
-
-static const std::string s_usageMsg = 
-"aquacppminer.exe -F url [-t nThreads] [-n nodeUrl] [--solo] [-r refreshRate] [-h]\n"
-"  -F url        : url of pool or node to mine on, if not specified, will pool mine to dev's aquabase\n"
-"  -t nThreads   : number of threads to use (if not specified will use maximum logical threads available)\n"
-"  -n node_url   : optional node url, to get more stats (pool mining only)\n"
-"  -r rate       : pool refresh rate, ex: 3s, 2.5m, default is 3s\n"
-"  --solo        : solo mining, -F needs to be the node url\n"
-"  -h            : display this help message and exit\n"
-;
 
 void printUsage()
 {
@@ -86,6 +70,24 @@ bool parseArgs(const char* prefix, int argc, char** argv)
 
 	if (ip.cmdOptionExists(OPT_FULLNODE_URL)) {
 		cfg.fullNodeUrl = ip.getCmdOption(OPT_FULLNODE_URL);
+	}
+
+	if (ip.cmdOptionExists(OPT_ARGON)) {
+		std::string s = ip.getCmdOption(OPT_ARGON);
+		uint32_t t_cost, m_cost, lanes;
+		auto count = sscanf(s.c_str(), "%u,%u,%u", &t_cost, &m_cost, &lanes);
+		if (count != 3) {
+			logLine(prefix, "Warning: invalid %s parameters: %s", 
+			OPT_ARGON.c_str(),
+			s.c_str());
+		}
+		else {
+			setArgonParams(t_cost, m_cost, lanes);
+		}
+	}
+
+	if (ip.cmdOptionExists(OPT_ARGON_SUBMIT)) {
+		forceSubmit();
 	}
 
 	setMiningConfig(cfg);

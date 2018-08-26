@@ -49,7 +49,7 @@ const std::string ARGON_ARCH = "AVX";
 const std::string ARGON_ARCH = "";
 #endif
 
-#define DO_TESTS (1)
+#define ARGON_VALIDITY_CHECK (1)
 
 using std::chrono::high_resolution_clock;
 
@@ -202,14 +202,16 @@ int main(int argc, char** argv) {
 #endif
 
 	// perform tests
-#if DO_TESTS
-	if (!testAquaHashing()) {
-		logLine(COORDINATOR_LOG_PREFIX, "Error: Hashing tests failed !");
-		return 1;
-	}
+#if ARGON_VALIDITY_CHECK
+	if (argonParamsMineable()) {
+		if (!testAquaHashing()) {
+			logLine(COORDINATOR_LOG_PREFIX, "Error: Hashing tests failed !");
+			return 1;
+		}
 
-	// free any memory used for tests
-	freeCurrentThreadMiningMemory();
+		// free any memory used for tests
+		freeCurrentThreadMiningMemory();
+	}
 #endif
 
 	// create & launch update thread
@@ -254,12 +256,12 @@ int main(int argc, char** argv) {
 		uint32_t nHashes = getTotalHashes();
 		if (nHashes > 0) {
 			// hashes / time since last pass
-			std::chrono::duration<float> durationSinceLast = tNow - tLast;
+			std::chrono::duration<double> durationSinceLast = tNow - tLast;
 			tLast = tNow;
 			assert(nHashes >= nHashesLast);
 			auto nHashesSinceLast = nHashes - nHashesLast;
 			nHashesLast = nHashes;
-			float hashesPerSecondSinceLast = (float)nHashesSinceLast / durationSinceLast.count();
+			double hashesPerSecondSinceLast = (double)nHashesSinceLast / durationSinceLast.count();
 
 			// hashes / time since start
 			std::chrono::duration<float> durationSinceStart = tNow - tMiningStart;
@@ -268,9 +270,15 @@ int main(int argc, char** argv) {
 			auto nSharesSubmitted = getTotalSharesSubmitted();
 			auto nSharesAccepted = getTotalSharesAccepted();
 			auto nSharesRejected = nSharesSubmitted - nSharesAccepted;
-			logLine(COORDINATOR_LOG_PREFIX, "%d threads | %6.2f kH/s | %s=%5lu | Rejected=%5lu (%4.1f%%)", 
+
+			double khs = hashesPerSecondSinceLast / 1000.0;
+			std::string formatStr;
+			formatStr = (khs >= 1.0) ? 
+				"%d threads | %6.2f kH/s | %s=%5lu | Rejected=%5lu (%4.1f%%)" :
+				"%d threads | %5.3f kH/s | %s=%5lu | Rejected=%5lu (%4.1f%%)";
+			logLine(COORDINATOR_LOG_PREFIX, formatStr.c_str(),
 				miningConfig().nThreads,
-				hashesPerSecondSinceLast / 1000.f,
+				khs,
 				miningConfig().soloMine ? "Blocks" : "Shares",
 				nSharesAccepted,
 				nSharesRejected,

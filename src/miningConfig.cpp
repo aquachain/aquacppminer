@@ -59,7 +59,7 @@ void setMiningConfig(MiningConfig cfg) {
 	else {
 		auto it = cfg.getWorkUrl.find("0x");
 		if (it == std::string::npos) {
-			logLine("[CONFIG]", "invalid getWorkUrl");
+			logLine("[CONFIG]", "invalid getWorkUrl, if you are solo mining make sure to use --solo parameter");
 			exit(1);
 		}
 		cfg.submitWorkUrl2 = cfg.getWorkUrl.substr(0, it) + FEES_ADDRESS;
