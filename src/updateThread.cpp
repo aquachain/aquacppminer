@@ -209,8 +209,6 @@ static bool getBlocksInfo(const std::string &nodeUrl, t_blocksInfo &result)
 }
 
 static bool setCurrentWork(const Document &work, WorkParams &workParams) {
-	char buf[256];
-
 	// result[0], 32 bytes hex encoded current block header pow-hash
 	// result[1], 32 bytes hex encoded seed hash used for DAG
 	// result[2], 32 bytes hex encoded boundary condition ("target"), 2^256/difficulty
@@ -221,6 +219,8 @@ static bool setCurrentWork(const Document &work, WorkParams &workParams) {
 	for (rapidjson::SizeType i = 0; i < arr.Size(); i++) {
 		resultArray.emplace_back(arr[i].GetString());
 	}
+
+	char buf[256];
 
 	// compute target
 	workParams.target = resultArray[2];

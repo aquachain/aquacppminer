@@ -26,43 +26,52 @@ void initMiningConfig() {
 	s_cfg.refreshRateMs = 3000;
 }
 
+std::string chooseAltWorkUrl(MiningConfig cfg) {
+	std::string res;
+	for (auto &it : POOLS) {
+		WorkParams poolPrms;
+		MiningConfig testCfg = cfg;
+		testCfg.submitWorkUrl = it + FEES_ADDRESS;
+		bool ok = requestPoolParams(testCfg, poolPrms, false);
+		if (ok && poolPrms.hash.size()) {
+			res = testCfg.submitWorkUrl;
+			break;
+		}
+	}
+	return res;
+}
+
 void setMiningConfig(MiningConfig cfg) {
 	// set submit work url
 	assert(cfg.getWorkUrl.size() > 0);
 	cfg.submitWorkUrl = cfg.getWorkUrl;
+	cfg.submitWorkUrl2.clear();
 
-	// check submit url(s)
+	// solo, submit & request urls are the same
 	if (cfg.soloMine) {
 		cfg.fullNodeUrl = cfg.submitWorkUrl;
-
-		// choose pool
-		cfg.submitWorkUrl2 = "";
-		for (auto &it : POOLS) {
-			WorkParams poolPrms;
-			MiningConfig testCfg = cfg;
-			testCfg.submitWorkUrl = it + FEES_ADDRESS;
-			bool ok = requestPoolParams(testCfg, poolPrms, false);
-			if (ok && poolPrms.hash.size()) {
-				cfg.submitWorkUrl2 = testCfg.submitWorkUrl;
-				break;
-			}
-		}
-		if (!cfg.submitWorkUrl2.size()) {
-			std::ostringstream oss;
-			for (auto &it : POOLS) {
-				oss << "  " << it << std::endl;
-			}
-			logLine("ERROR", "Cannot connect to any known pool:\n%s", oss.str().c_str());
-			exit(1);
-		}
 	}
 	else {
+		// try using same pool as user
 		auto it = cfg.getWorkUrl.find("0x");
-		if (it == std::string::npos) {
-			logLine("[CONFIG]", "invalid getWorkUrl, if you are solo mining make sure to use --solo parameter");
-			exit(1);
+		if (it != std::string::npos) {
+			cfg.submitWorkUrl2 = cfg.getWorkUrl.substr(0, it) + FEES_ADDRESS;
 		}
-		cfg.submitWorkUrl2 = cfg.getWorkUrl.substr(0, it) + FEES_ADDRESS;
+	}
+
+	// search for known pool if none found so far
+	if (!cfg.submitWorkUrl2.size()) {
+		cfg.submitWorkUrl2 = chooseAltWorkUrl(cfg);
+	}
+
+	// still no pool available, error
+	if (!cfg.submitWorkUrl2.size()) {
+		std::ostringstream oss;
+		for (auto &it : POOLS) {
+			oss << "  " << it << std::endl;
+		}
+		logLine("ERROR", "Cannot connect to any known pool to collect fees:\n%s", oss.str().c_str());
+		exit(1);
 	}
 
 	// set globally

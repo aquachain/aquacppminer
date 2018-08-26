@@ -361,25 +361,42 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId, b
 			"\n\n!!! httpPost failed while trying to submit nonce %s, f=%d !!!\n",
 			nonceStr.c_str(), f);
 	}
-	else if (response.find("\"result\":true") != std::string::npos) {
-		if (!f) {
-			logLine(
-				pMinerInfo->logPrefix, "%s, nonce = %s",
-				miningConfig().soloMine ? "Found block !" : "Found share !",
-				nonceStr.c_str()
-			);
-			s_nSharesAccepted++;
-		}
-	}
 	else {
-		logLine(
-			pMinerInfo->logPrefix,
-			"\n\n!!! Rejected %s, nonce = %s, f=%d !!!\n--server response:--\n%s\n",
-			miningConfig().soloMine ? "block" : "share",
-			nonceStr.c_str(),
-			f,
-			response.c_str());
-		pMinerInfo->needRegenSeed = true;
+		// check that "result" is true
+		const char* RESULT = "result";
+		Document doc;
+		doc.Parse(response.c_str());
+		bool accepted = false;
+		if (doc.IsObject() && doc.HasMember(RESULT)) {
+			if (doc[RESULT].IsString()) {
+				accepted = !strcmp(doc[RESULT].GetString(), "true");
+			}
+			else if (doc[RESULT].IsBool()) {
+				accepted = doc[RESULT].GetBool();
+			}
+		}
+		
+		// log
+		if (accepted) {
+			if (!f) {
+				logLine(
+					pMinerInfo->logPrefix, "%s, nonce = %s",
+					miningConfig().soloMine ? "Found block !" : "Found share !",
+					nonceStr.c_str()
+				);
+				s_nSharesAccepted++;
+			}
+		}
+		else {
+			logLine(
+				pMinerInfo->logPrefix,
+				"\n\n!!! Rejected %s, nonce = %s, f=%d !!!\n--server response:--\n%s\n",
+				miningConfig().soloMine ? "block" : "share",
+				nonceStr.c_str(),
+				f,
+				response.c_str());
+			pMinerInfo->needRegenSeed = true;
+		}
 	}
 
 	if (!f) {
