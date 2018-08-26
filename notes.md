@@ -1,19 +1,19 @@
-# TODO v1.2
-	OK limit http connections (1 for updater, 1 for submit)
-	* -argon x,y,z flag
-	* -hf7 flag (priority over -argon flag)
-	* update README with new parameters
-# TODO
+# TODO v1.3
+    * testnet 
+		* see testnet / testnet2 param of default miner
+		* skip fees on testnet
+	* -hf8 / -hf7
+	* affinity, --no-affinity
+	* -intensity xx
 	* ARM support
 		=> make sure optimization path taken
+
+# TODO
 	* AVX512F support
-		=> make sure optimization path taken
-	* intensity option
-	* not enough lines issue 
-		* try solo mining with short config file to reproduce
-    * review what happens when pool refuses share 
-		* should we retry ?
-	* logFile (in branch)
+	* https://aquachain.github.io/pools.json
+    * review what happens when pool refuses share, retry ?
+	* logFile branch
+	* not enough lines issue (try solo mining with short config file to reproduce)
 
 # REJECTION EXAMPLE
 	- New work info -
