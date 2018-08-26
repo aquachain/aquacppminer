@@ -121,6 +121,10 @@ int threadSafe_RAND_bytes(unsigned char *buf, int num) {
 #define RAND_bytes threadSafe_RAND_bytes
 #endif
 
+bool submitEnabled() {
+	return s_argon_prms_mineable || s_argon_prms_forceSubmit;
+}
+
 uint32_t getTotalSharesSubmitted()
 {
 	return s_nSharesFound;
@@ -255,7 +259,7 @@ void setArgonParams(long t_cost, long m_cost, long lanes) {
 	logLine(s_logPrefix, "t_cost        : %u", AQUA_ARGON_TIME);
 	logLine(s_logPrefix, "m_cost        : %u", AQUA_ARGON_MEM);
 	logLine(s_logPrefix, "lanes         : %u", AQUA_ARGON_LANES);
-	logLine(s_logPrefix, "submit shares : %s", s_argon_prms_mineable ? "yes" : "no !");
+	logLine(s_logPrefix, "submit shares : %s", submitEnabled() ? "yes" : "no");
 }
 
 void setupAquaArgonCtx(
@@ -299,10 +303,6 @@ std::string nonceToString(uint64_t nonce) {
 
 static std::mutex s_submit_mutex;
 static http_connection_handle_t s_httpHandleSubmit = nullptr;
-
-bool submitEnabled() {
-	return s_argon_prms_mineable || s_argon_prms_forceSubmit;
-}
 
 void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId, bool f)
 {
