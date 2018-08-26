@@ -46,7 +46,16 @@ void destroyHttpConnectionHandle(http_connection_handle_t h) {
 	}
 }
 
+static string s_proxy;
+static bool s_proxy_sentinel = false;
 
+void setGlobalProxy(string s) {
+	if (s_proxy_sentinel) {
+		printf("Error: proxy_sentinel");
+		exit(1);
+	}
+	s_proxy = s;
+}
 
 // inspired from: https://raw.githubusercontent.com/curl/curl/master/docs/examples/postinmemory.c
 // ex: httpPostUrlEncodedRaw("http://www.example.org/", "Field=1&Field=2&Field=3")
@@ -86,6 +95,11 @@ bool httpPost(
 		curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDS, postData.c_str());
 		curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDSIZE, postData.size());
 		curl_easy_setopt(curlHandle, CURLOPT_URL, url.c_str());
+
+		s_proxy_sentinel = true;
+		if (s_proxy.size()) {
+			curl_easy_setopt(curlHandle, CURLOPT_PROXY, s_proxy.c_str());
+		}
 		curl_easy_setopt(curlHandle, CURLOPT_USERAGENT, "libcurl-agent/1.0");
 
 		curl_easy_setopt(curlHandle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);

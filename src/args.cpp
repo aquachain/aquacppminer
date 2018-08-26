@@ -3,6 +3,7 @@
 #include "miningConfig.h"
 #include "log.h"
 #include "miner.h"
+#include "http.h"
 
 #include <assert.h>
 
@@ -36,10 +37,21 @@ bool parseArgs(const char* prefix, int argc, char** argv)
 {
 	InputParser ip(argc, argv);
 	MiningConfig cfg = miningConfig();
-	
+
 	if (ip.cmdOptionExists(OPT_USAGE)) {
 		printUsage();
 		return false;
+	}
+
+	if (ip.cmdOptionExists(OPT_PROXY)) {
+		std::string s = ip.getCmdOption(OPT_PROXY);
+		if (s.size() > 0) {
+			setGlobalProxy(s);
+			logLine(prefix, "Using proxy %s", s.c_str());
+		}
+		else {
+			logLine(prefix, "Invalid proxy value, ignoring it");
+		}
 	}
 
 	if (ip.cmdOptionExists(OPT_SOLO)) {
