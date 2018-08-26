@@ -13,6 +13,7 @@ Use a tool like CPUZ to see if your CPU supports AVX / AVX2
 ### Versions
 * 1.0: initial release
 * 1.1: fix occasional bad shares, linux/win/macOS build scripts
+* 1.2: less HTTP connections, --proxy option, developer options, reduced fee to 2%
 
 ### Installation
 On Linux you may need to install some required packages first in order to build
