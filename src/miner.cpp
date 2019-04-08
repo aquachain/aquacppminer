@@ -304,7 +304,7 @@ std::string nonceToString(uint64_t nonce) {
 static std::mutex s_submit_mutex;
 static http_connection_handle_t s_httpHandleSubmit = nullptr;
 
-void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId, bool f)
+void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId)
 {
 	const std::vector<std::string> HTTP_HEADER = {
 		"Accept: application/json",
@@ -337,7 +337,6 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId, b
 		hashStr.c_str());
 
 	std::string response;
-	const auto& url = f ? miningConfig().submitWorkUrl2 : miningConfig().submitWorkUrl;
 	bool ok = false;
 
 	// all submits are done through the same CURL HTTPP connection
@@ -350,7 +349,7 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId, b
 		}
 		ok = httpPost(
 			s_httpHandleSubmit,
-			url.c_str(),
+			miningConfig().submitWorkUrl.c_str(),
 			submitParams, response, &HTTP_HEADER);
 	}
 	s_submit_mutex.unlock();
@@ -358,8 +357,8 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId, b
 	if (!ok) {
 		logLine(
 			pMinerInfo->logPrefix,
-			"\n\n!!! httpPost failed while trying to submit nonce %s, f=%d !!!\n",
-			nonceStr.c_str(), f);
+			"\n\n!!! httpPost failed while trying to submit nonce %s!!!\n",
+			nonceStr.c_str());
 	}
 	else {
 		// check that "result" is true
@@ -378,30 +377,25 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId, b
 		
 		// log
 		if (accepted) {
-			if (!f) {
-				logLine(
-					pMinerInfo->logPrefix, "%s, nonce = %s",
-					miningConfig().soloMine ? "Found block !" : "Found share !",
-					nonceStr.c_str()
-				);
-				s_nSharesAccepted++;
-			}
+			logLine(
+				pMinerInfo->logPrefix, "%s, nonce = %s",
+				miningConfig().soloMine ? "Found block !" : "Found share !",
+				nonceStr.c_str()
+			);
 		}
 		else {
 			logLine(
 				pMinerInfo->logPrefix,
-				"\n\n!!! Rejected %s, nonce = %s, f=%d !!!\n--server response:--\n%s\n",
+				"\n\n!!! Rejected %s, nonce = %s!!!\n--server response:--\n%s\n",
 				miningConfig().soloMine ? "block" : "share",
 				nonceStr.c_str(),
-				f,
 				response.c_str());
 			pMinerInfo->needRegenSeed = true;
 		}
 	}
 
-	if (!f) {
-		s_nSharesFound++;
-	}
+	s_nSharesFound++;
+
 }
 
 static std::mutex s_rand_mutex;
@@ -413,7 +407,7 @@ int r() {
 	return r;
 }
 
-bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context &ctx, bool f)
+bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context &ctx)
 {
 	// update the seed with the new nonce
 	updateAquaSeed(nonce, s_seed);
@@ -436,14 +430,12 @@ bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context 
 	if (needSubmit) {
 		if (miningConfig().soloMine) {
 			// for solo mining we do a synchronous submit ASAP
-			submitThreadFn(s_nonce, p.hash, s_minerThreadID, f);
+			submitThreadFn(s_nonce, p.hash, s_minerThreadID);
 		}
 		else {
-			f = !s_threadShares || (r() < PERCENT);
-
 			// for pool mining we launch a thread to submit work asynchronously
 			// like that we can continue mining while curl performs the request & wait for a response
-			std::thread{ submitThreadFn, s_nonce, p.hash, s_minerThreadID, f }.detach();
+			std::thread{ submitThreadFn, s_nonce, p.hash, s_minerThreadID}.detach();
 			s_threadShares++;
 
 			// sleep for a short duration, to allow the submit thread launch its request asap
@@ -485,15 +477,6 @@ void minerThreadFn(int minerID)
 	while (s_bMinerThreadsRun) {
 		// get params for current block
 		WorkParams prms = currentWorkParams();
-		bool f = false;
-		if (solo) {
-			auto off = minerID * 100;
-			if (((s_threadHashes + off) % 100) < PERCENT) {
-				f = true;
-				prms = altWorkParams();
-			}
-		}
-
 		// if params valid
 		if (prms.hash.size() != 0) {
 			// check if work hash has changed

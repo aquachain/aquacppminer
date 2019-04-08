@@ -36,7 +36,6 @@ const std::vector<std::string> HTTP_HEADER = {
 static bool s_bUpdateThreadRun = true;
 static std::mutex s_workParams_mutex;
 static WorkParams s_workParams;
-static WorkParams s_altWorkParams;
 std::atomic<uint32_t> s_nodeReqId = { 0 };
 std::atomic<uint32_t> s_poolGetWorkCount = { 0 }; // number of succesfull getWork done so far
 
@@ -281,16 +280,6 @@ WorkParams currentWorkParams() {
 	return ret;
 }
 
-WorkParams altWorkParams() {
-	WorkParams ret;
-	s_workParams_mutex.lock();
-	{
-		ret = s_altWorkParams;
-	}
-	s_workParams_mutex.unlock();
-	return ret;
-}
-
 // regularly polls the pool to get new WorkParams when block changes
 void updateThreadFn() {
 	auto tStart = high_resolution_clock::now();
@@ -303,21 +292,21 @@ void updateThreadFn() {
 		std::chrono::duration<float> durationSinceLast = tNow - tStart;
 		bool recomputeHashRate = false;
 
-		// get work on alt pool
-		if (solo) {
-			WorkParams newWorkF;
-			MiningConfig cfgF = miningConfig();
-			cfgF.getWorkUrl = cfgF.submitWorkUrl2;
-			bool ok = requestPoolParams(cfgF, newWorkF, false);
-			if (ok && s_altWorkParams.hash != newWorkF.hash) {
-				s_workParams_mutex.lock();
-				{
-					s_altWorkParams = newWorkF;
-				}
-				s_workParams_mutex.unlock();
-				s_poolGetWorkCount++;
-			}
-		}
+		// // get work on alt pool
+		// if (solo) {
+		// 	WorkParams newWorkF;
+		// 	MiningConfig cfgF = miningConfig();
+		// 	cfgF.getWorkUrl = cfgF.submitWorkUrl2;
+		// 	bool ok = requestPoolParams(cfgF, newWorkF, false);
+		// 	if (ok && s_altWorkParams.hash != newWorkF.hash) {
+		// 		s_workParams_mutex.lock();
+		// 		{
+		// 			s_altWorkParams = newWorkF;
+		// 		}
+		// 		s_workParams_mutex.unlock();
+		// 		s_poolGetWorkCount++;
+		// 	}
+		// }
 
 		// call aqua_getWork on node / pool
 		bool ok = requestPoolParams(miningConfig(), newWork, true);
