@@ -13,7 +13,7 @@ echo
 echo "Clone & compile"
 
 # clone libcurl builder
-git clone https://bitbucket.org/cryptogone/libcurl-win.git "$BUILD_PATH"
+git clone https://github.com/aquachain/libcurl-win.git "$BUILD_PATH"
 
 # build
 cd "$BUILD_PATH"
