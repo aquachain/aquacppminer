@@ -525,7 +525,7 @@ void minerThreadFn(int minerID)
 			}
 
 			// hash
-			bool hashOk = hash(prms, mpz_result, s_nonce, s_ctx, f);
+			bool hashOk = hash(prms, mpz_result, s_nonce, s_ctx);
 			if (hashOk) {
 				s_nonce++;
 				s_threadHashes++;
