@@ -116,7 +116,7 @@ int threadSafe_RAND_bytes(unsigned char *buf, int num) {
 	for (int i = 0; i < num; i++)
 		buf[i] = rand() & 0xFF;
 	return 1;
-#endif	
+#endif
 }
 #define RAND_bytes threadSafe_RAND_bytes
 #endif
@@ -242,13 +242,13 @@ bool argonParamsMineable() {
 void setArgonParams(long t_cost, long m_cost, long lanes) {
 	// will not submit when testing argon params
 	s_argon_prms_mineable = (t_cost == AQUA_HF7[0]) && (m_cost == AQUA_HF7[1]) && (lanes == AQUA_HF7[2]);
-	
+
 	// cannot change argon params once we started mining
 	if (s_argon_prms_sentinel) {
 		printf("Error: setArgonParams called while contexts already created, aborting\n");
 		exit(1);
 	}
-	
+
 	// set new params globally
 	AQUA_ARGON_TIME = t_cost;
 	AQUA_ARGON_MEM = m_cost;
@@ -266,7 +266,7 @@ void setupAquaArgonCtx(
 	Argon2_Context &ctx,
 	const Bytes &seed,
 	uint8_t* outHashPtr)
-{	
+{
 	s_argon_prms_sentinel = true;
 	memset(&ctx, 0, sizeof(Argon2_Context));
 	ctx.out = outHashPtr;
@@ -374,7 +374,7 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId)
 				accepted = doc[RESULT].GetBool();
 			}
 		}
-		
+
 		// log
 		if (accepted) {
 			logLine(
@@ -382,6 +382,7 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId)
 				miningConfig().soloMine ? "Found block !" : "Found share !",
 				nonceStr.c_str()
 			);
+			s_nSharesAccepted++;
 		}
 		else {
 			logLine(
@@ -393,9 +394,7 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId)
 			pMinerInfo->needRegenSeed = true;
 		}
 	}
-
 	s_nSharesFound++;
-
 }
 
 static std::mutex s_rand_mutex;
@@ -453,7 +452,7 @@ uint64_t makeAquaNonce()
 	return nonce;
 }
 
-void minerThreadFn(int minerID) 
+void minerThreadFn(int minerID)
 {
 	// record thread id in TLS
 	s_minerThreadID = minerID;
@@ -542,7 +541,7 @@ void minerThreadFn(int minerID)
 	freeCurrentThreadMiningMemory();
 }
 
-void startMinerThreads(int nThreads) 
+void startMinerThreads(int nThreads)
 {
 	assert(nThreads > 0);
 	assert(s_minerThreads.size() == 0);
@@ -553,7 +552,7 @@ void startMinerThreads(int nThreads)
 	}
 }
 
-void stopMinerThreads() 
+void stopMinerThreads()
 {
 	assert(s_bMinerThreadsRun);
 	s_bMinerThreadsRun = false;
