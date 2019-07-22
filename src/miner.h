@@ -14,6 +14,7 @@ const uint32_t ARGON2_HASH_LEN = 32;
 
 // current work
 struct WorkParams {
+	int version = -1;
 	std::string difficulty = "";
 	std::string target = "";
 	std::string hash = "";
@@ -54,5 +55,4 @@ inline void mpz_fromBytes(uint8_t* bytes, size_t count, mpz_t mpz_result) {
 }
 
 void setArgonParams(long t_cost, long m_cost, long lanes);
-void forceSubmit();
 bool argonParamsMineable();

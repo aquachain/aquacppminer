@@ -74,27 +74,22 @@ thread_local Bytes s_seed;
 thread_local uint64_t s_nonce = 0;
 thread_local uint8_t s_argonHash[ARGON2_HASH_LEN] = { 0 };
 thread_local int s_minerThreadID = { -1 };
-#pragma message("TODO: what size to use here ?")
 thread_local char s_currentWorkHash[256] = { 0 };
-thread_local char s_logPrefix[32] = "MAIN";
+thread_local char s_logPrefix[32] = "MINE";
 thread_local uint64_t s_threadHashes = 0;
 thread_local uint64_t s_threadShares = 0;
-const size_t PERCENT = 2;
 
 // need to be able to stop main loop from miner threads
 extern bool s_run;
 
-// argon2 params for aquachain
+// argon2id params for aquachain
 const std::vector<int> AQUA_HF7 = { 1, 1, 1 };
+const std::vector<int> AQUA_HF8 = { 1, 16, 1 };
+const std::vector<int> AQUA_HF9 = { 1, 32, 1 };
 
 static int AQUA_ARGON_TIME  = AQUA_HF7[0];
 static int AQUA_ARGON_MEM   = AQUA_HF7[1];
 static int AQUA_ARGON_LANES = AQUA_HF7[2];
-
-// for controling changes in aqua params
-static bool s_argon_prms_mineable = true;
-static bool s_argon_prms_forceSubmit = false;
-static bool s_argon_prms_sentinel = false;
 
 void mpz_maxBest(mpz_t mpz_n) {
 	mpz_t mpz_two, mpz_exponent;
@@ -121,10 +116,6 @@ int threadSafe_RAND_bytes(unsigned char *buf, int num) {
 #define RAND_bytes threadSafe_RAND_bytes
 #endif
 
-bool submitEnabled() {
-	return s_argon_prms_mineable || s_argon_prms_forceSubmit;
-}
-
 uint32_t getTotalSharesSubmitted()
 {
 	return s_nSharesFound;
@@ -145,7 +136,7 @@ uint32_t getTotalBlocksAccepted()
 	return s_nBlocksFound;
 }
 
-#define USE_CUSTOM_ALLOCATOR (1)
+#define USE_CUSTOM_ALLOCATOR (0)
 #if USE_CUSTOM_ALLOCATOR
 static std::mutex s_alloc_mutex;
 std::map<std::thread::id, uint8_t*> threadBlocks;
@@ -231,23 +222,8 @@ void updateAquaSeed(
 	}
 }
 
-void forceSubmit() {
-	s_argon_prms_forceSubmit = true;
-}
-
-bool argonParamsMineable() {
-	return s_argon_prms_mineable;
-}
-
 void setArgonParams(long t_cost, long m_cost, long lanes) {
-	// will not submit when testing argon params
-	s_argon_prms_mineable = (t_cost == AQUA_HF7[0]) && (m_cost == AQUA_HF7[1]) && (lanes == AQUA_HF7[2]);
-
-	// cannot change argon params once we started mining
-	if (s_argon_prms_sentinel) {
-		printf("Error: setArgonParams called while contexts already created, aborting\n");
-		exit(1);
-	}
+	// argon_prms_mineable = (t_cost == AQUA_HF7[0]) && (m_cost == AQUA_HF7[1]) && (lanes == AQUA_HF7[2]);
 
 	// set new params globally
 	AQUA_ARGON_TIME = t_cost;
@@ -255,11 +231,10 @@ void setArgonParams(long t_cost, long m_cost, long lanes) {
 	AQUA_ARGON_LANES = lanes;
 
 	// log
-	logLine(s_logPrefix,"--- Custom Argon Parameters ---");
+	logLine(s_logPrefix,"--- AQUA Argon2id Parameters ---");
 	logLine(s_logPrefix, "t_cost        : %u", AQUA_ARGON_TIME);
 	logLine(s_logPrefix, "m_cost        : %u", AQUA_ARGON_MEM);
 	logLine(s_logPrefix, "lanes         : %u", AQUA_ARGON_LANES);
-	logLine(s_logPrefix, "submit shares : %s", submitEnabled() ? "yes" : "no");
 }
 
 void setupAquaArgonCtx(
@@ -267,7 +242,6 @@ void setupAquaArgonCtx(
 	const Bytes &seed,
 	uint8_t* outHashPtr)
 {
-	s_argon_prms_sentinel = true;
 	memset(&ctx, 0, sizeof(Argon2_Context));
 	ctx.out = outHashPtr;
 	ctx.outlen = ARGON2_HASH_LEN;
@@ -312,21 +286,9 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId)
 	};
 
 	MinerInfo* pMinerInfo = &s_minerThreadsInfo[minerThreadId];
-
 	auto nonceStr = nonceToString(nonceVal);
-
-	// do not submit when testing argon parameters, except if explicitely asked
-	if (!submitEnabled()) {
-		logLine(pMinerInfo->logPrefix,
-			"%s (not submitted, use %s to force), nonce = %s ",
-			miningConfig().soloMine ? "Found block !" : "Found share !",
-			OPT_ARGON_SUBMIT.c_str(),
-			nonceStr.c_str()
-		);
-		return;
-	}
-
 	char submitParams[512] = { 0 };
+
 	snprintf(
 		submitParams,
 		sizeof(submitParams),
@@ -395,15 +357,6 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId)
 		}
 	}
 	s_nSharesFound++;
-}
-
-static std::mutex s_rand_mutex;
-
-int r() {
-	s_rand_mutex.lock();
-	int r = rand() % 100;
-	s_rand_mutex.unlock();
-	return r;
 }
 
 bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context &ctx)
@@ -507,12 +460,7 @@ void minerThreadFn(int minerID)
 						logLine(s_logPrefix, "regenerated nonce after a reject, not waiting for pool to send new work !");
 #else
 						logLine(s_logPrefix, "Thread stopped mining because last share rejected, waiting for new work from pool");
-						while (1) {
-							if (getPoolGetWorkCount() != getWorkCountOfRejectedShare) {
-								break;
-							}
-							std::this_thread::sleep_for(std::chrono::seconds(5));
-						}
+						std::this_thread::sleep_for(std::chrono::seconds(5));
 						logLine(s_logPrefix, "Thread resumes mining");
 #endif
 					}

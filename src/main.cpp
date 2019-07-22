@@ -53,8 +53,8 @@ const std::string ARGON_ARCH = "";
 
 using std::chrono::high_resolution_clock;
 
-const char* COORDINATOR_LOG_PREFIX = "MAIN";
-const std::string VERSION = "1.3.1";
+const char* COORDINATOR_LOG_PREFIX = "AQUA";
+const std::string VERSION = "1.3.2";
 
 bool s_needKeyPressAtEnd = false;
 bool s_run = true;
@@ -198,19 +198,6 @@ int main(int argc, char** argv) {
 	if (!setCtrlCHandler(ctrlCHandler)) {
 		logLine(COORDINATOR_LOG_PREFIX, "Error: Could not set ctrl+c handler, aborting");
 		return 1;
-	}
-#endif
-
-	// perform tests
-#if ARGON_VALIDITY_CHECK
-	if (argonParamsMineable()) {
-		if (!testAquaHashing()) {
-			logLine(COORDINATOR_LOG_PREFIX, "Error: Hashing tests failed !");
-			return 1;
-		}
-
-		// free any memory used for tests
-		freeCurrentThreadMiningMemory();
 	}
 #endif
 

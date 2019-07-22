@@ -103,10 +103,12 @@ std::string formatBlockInfo(const t_blockInfo &b) {
 		snprintf(buf, sizeof(buf),
 			"%-16s : %s\n"
 			"%-16s : %s\n"
-			"%-16s : %s",
+			"%-16s : %s\n"
+			"%-16s : %d",
 			"height", b.height.c_str(),
 			"diff", b.difficulty.c_str(),
-			"target", b.target.c_str());
+			"target", b.target.c_str(),
+			"version", b.version);
 	}
 	else {
 		snprintf(buf, sizeof(buf), 
@@ -114,24 +116,32 @@ std::string formatBlockInfo(const t_blockInfo &b) {
 			"%-16s : %s\n"
 			"%-16s : %s\n"
 			"%-16s : %s\n"
-			"%-16s : %s",
+			"%-16s : %s\n"
+			"%-16s : %d",
 			"height", b.height.c_str(),
 			"miner", b.miner.c_str(),
 			"diff", b.difficulty.c_str(),
 			"target", b.target.c_str(),
-			"nonce", b.nonce.c_str());
+			"nonce", b.nonce.c_str(),
+			"version", b.version);
 	}
 
-	if (b.version >= 0) {
-		auto n = strlen(buf);
-		snprintf(buf + n, sizeof(buf)-n, "\n%-16s : %d", "version", b.version);
-	}
-	
 	return buf;
 }
 
 static bool getBlocksInfo(const std::string &nodeUrl, t_blocksInfo &result)
 {
+	
+	if (0) {
+		return false;
+	}
+	
+	if (nodeUrl.size() == 0) {
+		return false;
+	}
+
+	//printf("node url: %s\n", nodeUrl.c_str());
+	
 	auto getBlockJson = [&nodeUrl](std::string blockNum, t_blockInfo &res) -> bool {
 		char getPendingBlockParams[512];
 		snprintf(
@@ -209,7 +219,7 @@ static bool getBlocksInfo(const std::string &nodeUrl, t_blocksInfo &result)
 
 static bool setCurrentWork(const Document &work, WorkParams &workParams) {
 	// result[0], 32 bytes hex encoded current block header pow-hash
-	// result[1], 32 bytes hex encoded seed hash used for DAG
+	// result[1], Hash Version. Previously 32 bytes hex encoded seed hash used for DAG
 	// result[2], 32 bytes hex encoded boundary condition ("target"), 2^256/difficulty
 	if (!work.HasMember(RESULT))
 		return false;
@@ -221,6 +231,25 @@ static bool setCurrentWork(const Document &work, WorkParams &workParams) {
 
 	char buf[256];
 
+	// hash version
+	switch (resultArray[1][65]) {
+		case '2':
+			workParams.version = 2;
+			break;
+		case '3':
+			workParams.version = 3;
+			break;
+		case '4':
+			workParams.version = 4;
+			break;
+		default:
+			workParams.version = -1;
+			break;
+	}
+	//printf("Hash: %s\n", resultArray[0].c_str());
+	//printf("Version: %c\n", resultArray[1][65]);
+	//printf("Difficulty: %s\n", resultArray[2].c_str());
+	
 	// compute target
 	workParams.target = resultArray[2];
 	decodeHex(workParams.target.c_str(), workParams.mpz_target);
@@ -292,22 +321,6 @@ void updateThreadFn() {
 		std::chrono::duration<float> durationSinceLast = tNow - tStart;
 		bool recomputeHashRate = false;
 
-		// // get work on alt pool
-		// if (solo) {
-		// 	WorkParams newWorkF;
-		// 	MiningConfig cfgF = miningConfig();
-		// 	cfgF.getWorkUrl = cfgF.submitWorkUrl2;
-		// 	bool ok = requestPoolParams(cfgF, newWorkF, false);
-		// 	if (ok && s_altWorkParams.hash != newWorkF.hash) {
-		// 		s_workParams_mutex.lock();
-		// 		{
-		// 			s_altWorkParams = newWorkF;
-		// 		}
-		// 		s_workParams_mutex.unlock();
-		// 		s_poolGetWorkCount++;
-		// 	}
-		// }
-
 		// call aqua_getWork on node / pool
 		bool ok = requestPoolParams(miningConfig(), newWork, true);
 		if (!ok) {
@@ -340,13 +353,15 @@ void updateThreadFn() {
 
 				// building log message
 				char header[2048] = { 0 };
-				snprintf(header, sizeof(header), "\n\n- New work info -\n%-16s : %s\n%-16s : %s\n%-16s : %s",
+				snprintf(header, sizeof(header), "\n\n- New work info -\n%-16s : %s\n%-16s : %s\n%-16s : %s\n%-16s : %d\n",
 					"hash", 
 					newWork.hash.c_str(),
 					miningConfig().soloMine ? "block difficulty" : "share difficulty",
 					newWork.difficulty.c_str(),
 					miningConfig().soloMine ? "block target" : "share target",
-					newWork.target.c_str());
+					newWork.target.c_str(),
+					"hash version",
+					newWork.version);
 
 				char body[2048] = { 0 };
 				t_blocksInfo blocksInfo;
@@ -355,12 +370,13 @@ void updateThreadFn() {
 						"Cannot show new block information (do not panic, mining might still be ok)");
 				}
 				else {
-					snprintf(body, sizeof(body),
-						"%-16s : %s\n",
-						"block height",
-						blocksInfo.pending.height.c_str());
 
 					if (hasFullNode) {
+						snprintf(body, sizeof(body),
+							"%-16s : %s\n",
+							"block height",
+							blocksInfo.pending.height.c_str());
+
 						auto n = strlen(body);
 						snprintf(body + n, sizeof(body) - n,
 							"\n- Latest mined block info -\n%s\n\n",

@@ -50,7 +50,8 @@ bool parseArgs(const char* prefix, int argc, char** argv)
 			logLine(prefix, "Using proxy %s", s.c_str());
 		}
 		else {
-			logLine(prefix, "Invalid proxy value, ignoring it");
+			logLine(prefix, "Invalid proxy value. Try: socks5://127.0.0.1:1080");
+			return false;
 		}
 	}
 
@@ -92,6 +93,7 @@ bool parseArgs(const char* prefix, int argc, char** argv)
 			logLine(prefix, "Warning: invalid %s parameters: %s", 
 			OPT_ARGON.c_str(),
 			s.c_str());
+			return false;
 		}
 		else {
 			setArgonParams(t_cost, m_cost, lanes);
