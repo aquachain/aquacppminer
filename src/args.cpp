@@ -98,10 +98,6 @@ bool parseArgs(const char* prefix, int argc, char** argv)
 		}
 	}
 
-	if (ip.cmdOptionExists(OPT_ARGON_SUBMIT)) {
-		forceSubmit();
-	}
-
 	setMiningConfig(cfg);
 
 	return true;
