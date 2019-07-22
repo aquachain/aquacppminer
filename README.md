@@ -8,12 +8,13 @@ Download [latest binaries](https://bitbucket.org/cryptogone/aquacppminer/downloa
     aquacppminer_avx : faster version, for CPUs supporting AVX instruction set
     aquacppminer_avx2: fastest version, for recent CPUs supporting AVX2 instruction set
 
-Use a tool like CPUZ to see if your CPU supports AVX / AVX2
+Use a tool like CPUZ (windows) or `lscpu` (linux) to see if your CPU supports AVX / AVX2
 
 ### Versions
 * 1.0: initial release
 * 1.1: fix occasional bad shares, linux/win/macOS build scripts
 * 1.2: less HTTP connections, --proxy option, developer options, reduced fee to 2%
+* 1.3: fee removed
 
 ### Installation
 On Linux you may need to install some required packages first in order to build
@@ -62,6 +63,10 @@ Pool Mining, 8 threads, getting more block stats from local aqua node
 Solo Mining to local aqua node, auto thread count
 
     aquacppminer --solo -F http://127.0.0.1:8543
+
+Proxied Mining to Remote Node
+    
+    aquacppminer --solo -F http://127.0.0.1:8543 --proxy socks5://127.0.0.1:1080
 
 ### Fee
 Miner takes a 3% fee, applies to solo & pool mining.
