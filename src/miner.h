@@ -8,6 +8,7 @@
 #include <gmp.h>
 #include <argon2.h>
 #include <assert.h>
+#include <mutex>
 
 // size of the hash that argon2i / argon2id will generate
 const uint32_t ARGON2_HASH_LEN = 32;
@@ -31,6 +32,9 @@ uint32_t getTotalBlocksAccepted();
 void freeCurrentThreadMiningMemory();
 
 void mpz_maxBest(mpz_t mpz_n);
+
+// in updateThread.cpp
+extern std::mutex s_workParams_mutex;
 
 bool generateAquaSeed(
 	uint64_t nonce,

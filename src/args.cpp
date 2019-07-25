@@ -29,8 +29,8 @@ std::pair<bool, uint32_t> parseRefreshRate(const std::string& refreshRateStr) {
 	else if (unit[0] == 'm') {
 		return { true, uint32_t(1000.f * 60.f * refreshRate) };
 	}
-	assert(0);
-	return{ false, 0 };
+	
+	return{ count != 0, uint32_t(refreshRate) };
 }
 
 bool parseArgs(const char* prefix, int argc, char** argv)

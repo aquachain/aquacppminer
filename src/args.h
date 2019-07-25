@@ -20,7 +20,7 @@ const std::string s_usageMsg =
 "  -F url         : Mining URL. If not specified, will pool mine to local AQUA RPC server (port 8543)\n"
 "  -t nThreads    : number of threads to use (if not specified will use maximum logical threads available)\n"
 "  -n node_url    : optional node url, to get more stats (pool mining only)\n"
-"  -r rate        : pool refresh rate, ex: 3s, 2.5m, default is 3s\n"
+"  -r rate        : pool refresh rate in milliseconds, or 3s, 2.5m, default is 3s\n"
 "  --solo         : solo mining, -F needs to be the node url or empty\n"
 "  --proxy        : proxy to use, ex: --proxy socks5://127.0.0.1:9150\n"
 "  --argon x,y,z  : use specific argon params (ex: 4,512,1)\n"

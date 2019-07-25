@@ -60,6 +60,15 @@ bool s_needKeyPressAtEnd = false;
 bool s_run = true;
 std::string s_configDir;
 
+std::string LOGO = ""
+"                              _           _       \n"
+"  __ _  __ _ _   _  __ _  ___| |__   __ _(_)_ __  \n"
+" / _ '|/ _' | | | |/ _' |/ __| '_ \\ / _' | | '_ \\ \n"
+"| (_| | (_| | |_| | (_| | (__| | | | (_| | | | | |\n"
+" \\__,_|\\__, |\\__,_|\\__,_|\\___|_| |_|\\__,_|_|_| |_|\n"
+"          |_| "
+	  "Update Often! https://gitlab.com/aquachain/aquachain\n";
+
 void ctrlCHandler() {
 	if (s_run) {
 		logLine(COORDINATOR_LOG_PREFIX, "Ctrl+C received, will shutdown soon");
@@ -126,9 +135,9 @@ int main(int argc, char** argv) {
 #endif
 
 	// welcome message
-	printf("-- AquaCppMiner %s %s (use -h for help, ctrl+c to quit)\n",
+	printf("-- AquaCppMiner %s %s (use -h for help, ctrl+c to quit)\n%s\n",
 		VERSION.c_str(),
-		ARCH);
+		ARCH, LOGO.c_str());
 
 	printOptimizationsInfo();
 

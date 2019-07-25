@@ -34,7 +34,7 @@ const std::vector<std::string> HTTP_HEADER = {
 };
 
 static bool s_bUpdateThreadRun = true;
-static std::mutex s_workParams_mutex;
+std::mutex s_workParams_mutex;
 static WorkParams s_workParams;
 std::atomic<uint32_t> s_nodeReqId = { 0 };
 std::atomic<uint32_t> s_poolGetWorkCount = { 0 }; // number of succesfull getWork done so far
@@ -132,14 +132,18 @@ std::string formatBlockInfo(const t_blockInfo &b) {
 static bool getBlocksInfo(const std::string &nodeUrl, t_blocksInfo &result)
 {
 	
-	if (0) {
+	if (false) {
+		printf("\n\nnot getting new block 1\n\n");
 		return false;
 	}
 	
+	
 	if (nodeUrl.size() == 0) {
+		printf("\n\nnot getting new block 2\n\n");
 		return false;
 	}
 
+	//printf("getting new block info\n");
 	//printf("node url: %s\n", nodeUrl.c_str());
 	
 	auto getBlockJson = [&nodeUrl](std::string blockNum, t_blockInfo &res) -> bool {
@@ -251,6 +255,11 @@ static bool setCurrentWork(const Document &work, WorkParams &workParams) {
 	//printf("Difficulty: %s\n", resultArray[2].c_str());
 	
 	// compute target
+	if (workParams.hash == resultArray[0]) {
+		// printf("not setting new existing work\n");
+		return true;
+	}
+	// printf("setting new work\n");
 	workParams.target = resultArray[2];
 	decodeHex(workParams.target.c_str(), workParams.mpz_target);
 	gmp_snprintf(buf, sizeof(buf), "%Zd", workParams.mpz_target);
@@ -316,12 +325,14 @@ void updateThreadFn() {
 
 	while (s_bUpdateThreadRun) {
 		WorkParams newWork;
+		newWork.hash = s_workParams.hash;
 
 		auto tNow = high_resolution_clock::now();
 		std::chrono::duration<float> durationSinceLast = tNow - tStart;
 		bool recomputeHashRate = false;
 
 		// call aqua_getWork on node / pool
+		// printf("\n\ngetWork\n\n");
 		bool ok = requestPoolParams(miningConfig(), newWork, true);
 		if (!ok) {
 			const auto POOL_ERROR_WAIT_N_SECONDS = 30;

@@ -65,6 +65,8 @@ static std::atomic<uint32_t> s_nBlocksFound(0);
 static std::atomic<uint32_t> s_nSharesFound(0);
 static std::atomic<uint32_t> s_nSharesAccepted(0);
 
+static std::mutex hash_version_mutex; // guards argon2's parameters
+
 // use same atomic for miners and update thread http request ID
 extern std::atomic<uint32_t> s_nodeReqId;
 
@@ -82,14 +84,10 @@ thread_local uint64_t s_threadShares = 0;
 // need to be able to stop main loop from miner threads
 extern bool s_run;
 
-// argon2id params for aquachain
+// argon2id params for aquachain each HF
 const std::vector<int> AQUA_HF7 = { 1, 1, 1 };
 const std::vector<int> AQUA_HF8 = { 1, 16, 1 };
 const std::vector<int> AQUA_HF9 = { 1, 32, 1 };
-
-static int AQUA_ARGON_TIME  = AQUA_HF7[0];
-static int AQUA_ARGON_MEM   = AQUA_HF7[1];
-static int AQUA_ARGON_LANES = AQUA_HF7[2];
 
 void mpz_maxBest(mpz_t mpz_n) {
 	mpz_t mpz_two, mpz_exponent;
@@ -223,24 +221,28 @@ void updateAquaSeed(
 }
 
 void setArgonParams(long t_cost, long m_cost, long lanes) {
+	printf("Setting argon2 params\n");
 	// argon_prms_mineable = (t_cost == AQUA_HF7[0]) && (m_cost == AQUA_HF7[1]) && (lanes == AQUA_HF7[2]);
 
 	// set new params globally
-	AQUA_ARGON_TIME = t_cost;
-	AQUA_ARGON_MEM = m_cost;
-	AQUA_ARGON_LANES = lanes;
+	//DEFAULT_AQUA_ARGON_TIME = t_cost;
+	//DEFAULT_AQUA_ARGON_MEM = m_cost;
+	//DEFAULT_AQUA_ARGON_LANES = lanes;
+	s_ctx.t_cost = t_cost;
+	s_ctx.m_cost = m_cost;
+	s_ctx.lanes = lanes;
 
 	// log
-	logLine(s_logPrefix,"--- AQUA Argon2id Parameters ---");
-	logLine(s_logPrefix, "t_cost        : %u", AQUA_ARGON_TIME);
-	logLine(s_logPrefix, "m_cost        : %u", AQUA_ARGON_MEM);
-	logLine(s_logPrefix, "lanes         : %u", AQUA_ARGON_LANES);
+	logLine(s_logPrefix,"--- New AQUA Argon2id Parameters ---");
+	logLine(s_logPrefix, "t_cost        : %u", s_ctx.t_cost);
+	logLine(s_logPrefix, "m_cost        : %u", s_ctx.m_cost);
+	logLine(s_logPrefix,"lanes         : %u", s_ctx.lanes);
 }
 
 void setupAquaArgonCtx(
-	Argon2_Context &ctx,
-	const Bytes &seed,
-	uint8_t* outHashPtr)
+	Argon2_Context &ctx, // params
+	const Bytes &seed,   // input
+	uint8_t* outHashPtr) // output
 {
 	memset(&ctx, 0, sizeof(Argon2_Context));
 	ctx.out = outHashPtr;
@@ -252,10 +254,12 @@ void setupAquaArgonCtx(
 	ctx.saltlen = 0;
 	ctx.version = ARGON2_VERSION_NUMBER;
 	ctx.flags = ARGON2_DEFAULT_FLAGS;
-	ctx.t_cost = AQUA_ARGON_TIME;
-	ctx.m_cost = AQUA_ARGON_MEM;
-	ctx.lanes = ctx.threads = AQUA_ARGON_LANES;
+	ctx.t_cost = 1;
+	ctx.m_cost = 1;
+	ctx.lanes = 1;
+	ctx.threads = 1;
 #if USE_CUSTOM_ALLOCATOR
+	printf("using custom allocator\n");
 	ctx.allocate_cbk = myAlloc;
 	ctx.free_cbk = myFree;
 #endif
@@ -300,6 +304,7 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId)
 
 	std::string response;
 	bool ok = false;
+	printf("[submit] %s\n", submitParams);
 
 	// all submits are done through the same CURL HTTPP connection
 	// so protected with a mutex
@@ -375,10 +380,8 @@ bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context 
 	// convert hash to a mpz (big int)
 	mpz_fromBytesNoInit(ctx.out, ctx.outlen, mpz_result);
 
-	//
-	bool needSubmit = mpz_cmp(mpz_result, p.mpz_target) < 0;
-
 	// compare to target
+	bool needSubmit = mpz_cmp(mpz_result, p.mpz_target) < 0;
 	if (needSubmit) {
 		if (miningConfig().soloMine) {
 			// for solo mining we do a synchronous submit ASAP
@@ -388,12 +391,12 @@ bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context 
 			// for pool mining we launch a thread to submit work asynchronously
 			// like that we can continue mining while curl performs the request & wait for a response
 			std::thread{ submitThreadFn, s_nonce, p.hash, s_minerThreadID}.detach();
-			s_threadShares++;
 
 			// sleep for a short duration, to allow the submit thread launch its request asap
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
 	}
+	s_threadShares++;
 	return true;
 }
 
@@ -425,10 +428,38 @@ void minerThreadFn(int minerID)
 	mpz_init(mpz_result);
 
 	bool solo = miningConfig().soloMine;
+	int version = -1;
+
 
 	while (s_bMinerThreadsRun) {
 		// get params for current block
 		WorkParams prms = currentWorkParams();
+		if (prms.version != version) {
+			s_workParams_mutex.lock();
+			version = prms.version;
+			printf("[%s] Activating Hash Version: %d\n", s_logPrefix, version);
+			switch (version) {
+				case -1:
+					assert(0);
+					break;
+				case 0:
+				case 1:
+					s_ctx.m_cost = 1;
+					break;
+				case 2:
+					s_ctx.m_cost = 1;
+					break;
+				case 3: 
+					s_ctx.m_cost = 16;
+					break;
+				case 4: 
+					s_ctx.m_cost = 32;
+					break;
+
+			}
+			setupAquaArgonCtx(s_ctx, s_seed, s_argonHash);
+			s_workParams_mutex.unlock();
+		}
 		// if params valid
 		if (prms.hash.size() != 0) {
 			// check if work hash has changed
@@ -438,12 +469,10 @@ void minerThreadFn(int minerID)
 				generateAquaSeed(s_nonce, prms.hash, s_seed);
 				// save current hash in TLS
 				strcpy(s_currentWorkHash, prms.hash.c_str());
-#if DEBUG_NONCES
+#if DEBUG_NONCE
 				logLine(s_logPrefix, "new work starting nonce: %s", nonceToString(s_nonce).c_str());
 #endif
-			}
-			else {
-				if (s_minerThreadsInfo[minerID].needRegenSeed) {
+			} else if (s_minerThreadsInfo[minerID].needRegenSeed) {
 					// pool has rejected the nonce, record current number of succesfull pool getWork requests
 					uint32_t getWorkCountOfRejectedShare = getPoolGetWorkCount();
 
@@ -454,24 +483,26 @@ void minerThreadFn(int minerID)
 					logLine(s_logPrefix, "regen nonce after reject: %s", nonceToString(s_nonce).c_str());
 #endif
 					// wait for update thread to get new work
-					if (!solo) {
+					//if (!solo) {
 #define WAIT_NEW_WORK_AFTER_REJECT (1)
 #if (WAIT_NEW_WORK_AFTER_REJECT == 0)
 						logLine(s_logPrefix, "regenerated nonce after a reject, not waiting for pool to send new work !");
 #else
 						logLine(s_logPrefix, "Thread stopped mining because last share rejected, waiting for new work from pool");
-						std::this_thread::sleep_for(std::chrono::seconds(5));
+						std::this_thread::sleep_for(std::chrono::seconds(3));
 						logLine(s_logPrefix, "Thread resumes mining");
 #endif
-					}
+					//}
+				// only inc the TLS nonce
+				printf("incrementing nonce again?\n");
+				s_nonce++;
 				}
-				else {
-					// only inc the TLS nonce
-					s_nonce++;
-				}
-			}
+			
 
 			// hash
+			//if (s_nonce % 10000 == 0) {
+			//	printf("Hashing m_cost=%d\n", s_ctx.m_cost);
+			//}
 			bool hashOk = hash(prms, mpz_result, s_nonce, s_ctx);
 			if (hashOk) {
 				s_nonce++;
