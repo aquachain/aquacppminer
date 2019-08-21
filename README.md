@@ -1,8 +1,12 @@
 # Aquacppminer
-[Aquachain](https://aquachain.github.io/) C++ optimized miner.
+[Aquachain](https://aquachain.github.io/) C++ optimized miner, originally created by cryptogone.
+
+Currently the best CPU miner for mining AQUA
+
+**[Tutorial](https://telegra.ph/Mining-AQUA-05-27)**
 
 ### Binaries
-Download [latest binaries](https://bitbucket.org/cryptogone/aquacppminer/downloads)
+Download [latest binaries](https://aquacha.in/latest/?sort=time&amp;order=desc)
 
     aquacppminer     : slowest version, should work on any CPU
     aquacppminer_avx : faster version, for CPUs supporting AVX instruction set
@@ -14,6 +18,7 @@ Use a tool like CPUZ to see if your CPU supports AVX / AVX2
 * 1.0: initial release
 * 1.1: fix occasional bad shares, linux/win/macOS build scripts
 * 1.2: less HTTP connections, --proxy option, developer options, reduced fee to 2%
+* 1.3.1: fee system removed
 
 ### Installation
 On Linux you may need to install some required packages first in order to build
@@ -26,7 +31,7 @@ Other platforms, just unzip to a folder and launch
 ### Build
 * all commands below need to be launched from the repo folder in a shell (github console on Windows, bash & friends on others)
 * on linux you first need to install some packages (see installation section)
-* on Windows you need to have Visual Studio 2015 installed (community version is ok)
+* on Windows you need to have Visual Studio 2015 installed [(community version is ok)](https://go.microsoft.com/fwlink/?LinkId=615448&clcid=0x409)
 * launch ./build/setup_linux.sh, ./build/setup_windows.sh or ./build/setup_linux.sh, depending on your platform
 * launch ./build/make_release_linux.sh, ./build/make_release_windows.sh, ./build/make_release_mac.sh, depending on your platform
 * if build succesfull, binaries will be in the rel/ folder
@@ -63,13 +68,8 @@ Solo Mining to local aqua node, auto thread count
 
     aquacppminer --solo -F http://127.0.0.1:8543
 
-### Fee
-Miner takes a 3% fee, applies to solo & pool mining.
-
-### Donations
-* AQUA : 0x6e37abb108f4010530beb4bbfd9842127d8bfb3f
-
-### Social
+### Credits
 * Email: cryptogone.dev@gmail.com
 * Twitter: [@CryptoGonus](https://twitter.com/CryptoGonus)
 * Discord: cryptogone#3107
+* AQUA : 0x6e37abb108f4010530beb4bbfd9842127d8bfb3f
