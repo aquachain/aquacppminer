@@ -49,7 +49,7 @@ uint32_t getPoolGetWorkCount() {
 void computeTarget(mpz_t mpz_difficulty, mpz_t &mpz_target) {
 	mpz_t mpz_numerator;
 	mpz_maxBest(mpz_numerator);
-	mpz_init_set_str(mpz_target, "0", 10);
+	mpz_init_set_str(mpz_target, "0", 16);
 	mpz_div(mpz_target, mpz_numerator, mpz_difficulty);
 }
 
@@ -262,7 +262,7 @@ static bool setCurrentWork(const Document &work, WorkParams &workParams) {
 	// printf("setting new work\n");
 	workParams.target = resultArray[2];
 	decodeHex(workParams.target.c_str(), workParams.mpz_target);
-	gmp_snprintf(buf, sizeof(buf), "%Zd", workParams.mpz_target);
+	gmp_snprintf(buf, sizeof(buf), "%Zx", workParams.mpz_target);
 	workParams.target.assign(buf);
 
 	// compute difficulty
