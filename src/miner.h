@@ -43,6 +43,7 @@ bool generateAquaSeed(
 
 void setupAquaArgonCtx(
 	Argon2_Context &ctx,
+    int version,
 	const Bytes &seed,
 	uint8_t* outHashPtr);
 

@@ -30,7 +30,7 @@ using namespace rapidjson;
 using std::chrono::high_resolution_clock;
 using std::string;
 
-#define DEBUG_NONCES (0)
+#define DEBUG_NONCES (1)
 
 #ifdef _WIN32
 	// Started to get rare crashes on windows64 when calling RAND_bytes() after enabling static linking for curl/openssl (never happened before when using DLLs ...)
@@ -88,6 +88,23 @@ extern bool s_run;
 const std::vector<int> AQUA_HF7 = { 1, 1, 1 };
 const std::vector<int> AQUA_HF8 = { 1, 16, 1 };
 const std::vector<int> AQUA_HF9 = { 1, 32, 1 };
+const std::vector<int> AQUA_HF10 = { 1, 64, 1 };
+
+const std::vector<int> memorycosts = { 0, AQUA_HF7[1], AQUA_HF8[1], AQUA_HF9[1], AQUA_HF10[1]};
+
+uint32_t getMemoryCost(int version) {
+  switch (version) {
+    case 2:
+      return 1;
+    case 3:
+      return 16;
+    case 4:
+      return 32;
+    case 5: 
+      return 64;
+  }
+  return -1;
+}
 
 void mpz_maxBest(mpz_t mpz_n) {
 	mpz_t mpz_two, mpz_exponent;
@@ -241,6 +258,7 @@ void setArgonParams(long t_cost, long m_cost, long lanes) {
 
 void setupAquaArgonCtx(
 	Argon2_Context &ctx, // params
+    int version, // hash version
 	const Bytes &seed,   // input
 	uint8_t* outHashPtr) // output
 {
@@ -255,7 +273,7 @@ void setupAquaArgonCtx(
 	ctx.version = ARGON2_VERSION_NUMBER;
 	ctx.flags = ARGON2_DEFAULT_FLAGS;
 	ctx.t_cost = 1;
-	ctx.m_cost = 1;
+	ctx.m_cost = getMemoryCost(version);
 	ctx.lanes = 1;
 	ctx.threads = 1;
 #if USE_CUSTOM_ALLOCATOR
@@ -419,7 +437,7 @@ void minerThreadFn(int minerID)
 
 	// init thread TLS variables that need it
 	s_seed.resize(40, 0);
-	setupAquaArgonCtx(s_ctx, s_seed, s_argonHash);
+	setupAquaArgonCtx(s_ctx, 2, s_seed, s_argonHash);
 
 	// init mpz that will hold result
 	// initialization is pretty costly, so should stay here, done only one time
@@ -435,30 +453,39 @@ void minerThreadFn(int minerID)
 		// get params for current block
 		WorkParams prms = currentWorkParams();
 		if (prms.version != version) {
+            if (prms.version == 0) {
+                break;
+            }
 			s_workParams_mutex.lock();
 			version = prms.version;
-			printf("[%s] Activating Hash Version: %d\n", s_logPrefix, version);
+			printf("[%s] Activating Hash Version: %d (m=%d)\n", s_logPrefix, version,getMemoryCost(version));
+            /*
 			switch (version) {
 				case -1:
 					assert(0);
 					break;
 				case 0:
+                    assert(0);
+					break;
 				case 1:
-					s_ctx.m_cost = 1;
+                    assert(0);
 					break;
-				case 2:
-					s_ctx.m_cost = 1;
+				case 2: // HF5
+					s_ctx.m_cost = AQUA_HF8[1];
 					break;
-				case 3: 
-					s_ctx.m_cost = 16;
+				case 3:  // HF9
+					s_ctx.m_cost = AQUA_HF9[1];
 					break;
-				case 4: 
-					s_ctx.m_cost = 32;
+				case 4:  //HF10
+					s_ctx.m_cost = AQUA_HF10[1];
 					break;
 
 			}
-			setupAquaArgonCtx(s_ctx, s_seed, s_argonHash);
+            */
+			setupAquaArgonCtx(s_ctx, version, s_seed, s_argonHash);
+
 			s_workParams_mutex.unlock();
+            continue;
 		}
 		// if params valid
 		if (prms.hash.size() != 0) {
@@ -469,6 +496,7 @@ void minerThreadFn(int minerID)
 				generateAquaSeed(s_nonce, prms.hash, s_seed);
 				// save current hash in TLS
 				strcpy(s_currentWorkHash, prms.hash.c_str());
+
 #if DEBUG_NONCE
 				logLine(s_logPrefix, "new work starting nonce: %s", nonceToString(s_nonce).c_str());
 #endif
