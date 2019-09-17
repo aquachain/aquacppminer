@@ -29,8 +29,8 @@ std::pair<bool, uint32_t> parseRefreshRate(const std::string& refreshRateStr) {
 	else if (unit[0] == 'm') {
 		return { true, uint32_t(1000.f * 60.f * refreshRate) };
 	}
-	assert(0);
-	return{ false, 0 };
+	
+	return{ count != 0, uint32_t(refreshRate) };
 }
 
 bool parseArgs(const char* prefix, int argc, char** argv)
@@ -50,7 +50,8 @@ bool parseArgs(const char* prefix, int argc, char** argv)
 			logLine(prefix, "Using proxy %s", s.c_str());
 		}
 		else {
-			logLine(prefix, "Invalid proxy value, ignoring it");
+			logLine(prefix, "Invalid proxy value. Try: socks5://127.0.0.1:1080");
+			return false;
 		}
 	}
 
@@ -92,14 +93,11 @@ bool parseArgs(const char* prefix, int argc, char** argv)
 			logLine(prefix, "Warning: invalid %s parameters: %s", 
 			OPT_ARGON.c_str(),
 			s.c_str());
+			return false;
 		}
 		else {
 			setArgonParams(t_cost, m_cost, lanes);
 		}
-	}
-
-	if (ip.cmdOptionExists(OPT_ARGON_SUBMIT)) {
-		forceSubmit();
 	}
 
 	setMiningConfig(cfg);

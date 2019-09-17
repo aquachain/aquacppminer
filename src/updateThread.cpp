@@ -34,7 +34,7 @@ const std::vector<std::string> HTTP_HEADER = {
 };
 
 static bool s_bUpdateThreadRun = true;
-static std::mutex s_workParams_mutex;
+std::mutex s_workParams_mutex;
 static WorkParams s_workParams;
 std::atomic<uint32_t> s_nodeReqId = { 0 };
 std::atomic<uint32_t> s_poolGetWorkCount = { 0 }; // number of succesfull getWork done so far
@@ -103,10 +103,12 @@ std::string formatBlockInfo(const t_blockInfo &b) {
 		snprintf(buf, sizeof(buf),
 			"%-16s : %s\n"
 			"%-16s : %s\n"
-			"%-16s : %s",
+			"%-16s : %s\n"
+			"%-16s : %d",
 			"height", b.height.c_str(),
 			"diff", b.difficulty.c_str(),
-			"target", b.target.c_str());
+			"target", b.target.c_str(),
+			"version", b.version);
 	}
 	else {
 		snprintf(buf, sizeof(buf), 
@@ -114,24 +116,36 @@ std::string formatBlockInfo(const t_blockInfo &b) {
 			"%-16s : %s\n"
 			"%-16s : %s\n"
 			"%-16s : %s\n"
-			"%-16s : %s",
+			"%-16s : %s\n"
+			"%-16s : %d",
 			"height", b.height.c_str(),
 			"miner", b.miner.c_str(),
 			"diff", b.difficulty.c_str(),
 			"target", b.target.c_str(),
-			"nonce", b.nonce.c_str());
+			"nonce", b.nonce.c_str(),
+			"version", b.version);
 	}
 
-	if (b.version >= 0) {
-		auto n = strlen(buf);
-		snprintf(buf + n, sizeof(buf)-n, "\n%-16s : %d", "version", b.version);
-	}
-	
 	return buf;
 }
 
 static bool getBlocksInfo(const std::string &nodeUrl, t_blocksInfo &result)
 {
+	
+	if (false) {
+		printf("\n\nnot getting new block 1\n\n");
+		return false;
+	}
+	
+	
+	if (nodeUrl.size() == 0) {
+		printf("\n\nnot getting new block 2\n\n");
+		return false;
+	}
+
+	//printf("getting new block info\n");
+	//printf("node url: %s\n", nodeUrl.c_str());
+	
 	auto getBlockJson = [&nodeUrl](std::string blockNum, t_blockInfo &res) -> bool {
 		char getPendingBlockParams[512];
 		snprintf(
@@ -209,7 +223,7 @@ static bool getBlocksInfo(const std::string &nodeUrl, t_blocksInfo &result)
 
 static bool setCurrentWork(const Document &work, WorkParams &workParams) {
 	// result[0], 32 bytes hex encoded current block header pow-hash
-	// result[1], 32 bytes hex encoded seed hash used for DAG
+	// result[1], Hash Version. Previously 32 bytes hex encoded seed hash used for DAG
 	// result[2], 32 bytes hex encoded boundary condition ("target"), 2^256/difficulty
 	if (!work.HasMember(RESULT))
 		return false;
@@ -221,7 +235,31 @@ static bool setCurrentWork(const Document &work, WorkParams &workParams) {
 
 	char buf[256];
 
+	// hash version
+	switch (resultArray[1][65]) {
+		case '2':
+			workParams.version = 2;
+			break;
+		case '3':
+			workParams.version = 3;
+			break;
+		case '4':
+			workParams.version = 4;
+			break;
+		default:
+			workParams.version = -1;
+			break;
+	}
+	//printf("Hash: %s\n", resultArray[0].c_str());
+	//printf("Version: %c\n", resultArray[1][65]);
+	//printf("Difficulty: %s\n", resultArray[2].c_str());
+	
 	// compute target
+	if (workParams.hash == resultArray[0]) {
+		// printf("not setting new existing work\n");
+		return true;
+	}
+	// printf("setting new work\n");
 	workParams.target = resultArray[2];
 	decodeHex(workParams.target.c_str(), workParams.mpz_target);
 	gmp_snprintf(buf, sizeof(buf), "%Zd", workParams.mpz_target);
@@ -287,28 +325,14 @@ void updateThreadFn() {
 
 	while (s_bUpdateThreadRun) {
 		WorkParams newWork;
+		newWork.hash = s_workParams.hash;
 
 		auto tNow = high_resolution_clock::now();
 		std::chrono::duration<float> durationSinceLast = tNow - tStart;
 		bool recomputeHashRate = false;
 
-		// // get work on alt pool
-		// if (solo) {
-		// 	WorkParams newWorkF;
-		// 	MiningConfig cfgF = miningConfig();
-		// 	cfgF.getWorkUrl = cfgF.submitWorkUrl2;
-		// 	bool ok = requestPoolParams(cfgF, newWorkF, false);
-		// 	if (ok && s_altWorkParams.hash != newWorkF.hash) {
-		// 		s_workParams_mutex.lock();
-		// 		{
-		// 			s_altWorkParams = newWorkF;
-		// 		}
-		// 		s_workParams_mutex.unlock();
-		// 		s_poolGetWorkCount++;
-		// 	}
-		// }
-
 		// call aqua_getWork on node / pool
+		// printf("\n\ngetWork\n\n");
 		bool ok = requestPoolParams(miningConfig(), newWork, true);
 		if (!ok) {
 			const auto POOL_ERROR_WAIT_N_SECONDS = 30;
@@ -340,13 +364,15 @@ void updateThreadFn() {
 
 				// building log message
 				char header[2048] = { 0 };
-				snprintf(header, sizeof(header), "\n\n- New work info -\n%-16s : %s\n%-16s : %s\n%-16s : %s",
+				snprintf(header, sizeof(header), "\n\n- New work info -\n%-16s : %s\n%-16s : %s\n%-16s : %s\n%-16s : %d\n",
 					"hash", 
 					newWork.hash.c_str(),
 					miningConfig().soloMine ? "block difficulty" : "share difficulty",
 					newWork.difficulty.c_str(),
 					miningConfig().soloMine ? "block target" : "share target",
-					newWork.target.c_str());
+					newWork.target.c_str(),
+					"hash version",
+					newWork.version);
 
 				char body[2048] = { 0 };
 				t_blocksInfo blocksInfo;
@@ -355,12 +381,13 @@ void updateThreadFn() {
 						"Cannot show new block information (do not panic, mining might still be ok)");
 				}
 				else {
-					snprintf(body, sizeof(body),
-						"%-16s : %s\n",
-						"block height",
-						blocksInfo.pending.height.c_str());
 
 					if (hasFullNode) {
+						snprintf(body, sizeof(body),
+							"%-16s : %s\n",
+							"block height",
+							blocksInfo.pending.height.c_str());
+
 						auto n = strlen(body);
 						snprintf(body + n, sizeof(body) - n,
 							"\n- Latest mined block info -\n%s\n\n",

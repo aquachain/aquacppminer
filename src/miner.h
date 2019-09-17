@@ -8,12 +8,14 @@
 #include <gmp.h>
 #include <argon2.h>
 #include <assert.h>
+#include <mutex>
 
 // size of the hash that argon2i / argon2id will generate
 const uint32_t ARGON2_HASH_LEN = 32;
 
 // current work
 struct WorkParams {
+	int version = -1;
 	std::string difficulty = "";
 	std::string target = "";
 	std::string hash = "";
@@ -31,6 +33,9 @@ void freeCurrentThreadMiningMemory();
 
 void mpz_maxBest(mpz_t mpz_n);
 
+// in updateThread.cpp
+extern std::mutex s_workParams_mutex;
+
 bool generateAquaSeed(
 	uint64_t nonce,
 	std::string workHashHex,
@@ -38,6 +43,7 @@ bool generateAquaSeed(
 
 void setupAquaArgonCtx(
 	Argon2_Context &ctx,
+    int version,
 	const Bytes &seed,
 	uint8_t* outHashPtr);
 
@@ -54,5 +60,4 @@ inline void mpz_fromBytes(uint8_t* bytes, size_t count, mpz_t mpz_result) {
 }
 
 void setArgonParams(long t_cost, long m_cost, long lanes);
-void forceSubmit();
 bool argonParamsMineable();

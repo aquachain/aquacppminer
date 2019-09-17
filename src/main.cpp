@@ -53,12 +53,21 @@ const std::string ARGON_ARCH = "";
 
 using std::chrono::high_resolution_clock;
 
-const char* COORDINATOR_LOG_PREFIX = "MAIN";
-const std::string VERSION = "1.3.1";
+const char* COORDINATOR_LOG_PREFIX = "AQUA";
+const std::string VERSION = "1.3.2";
 
 bool s_needKeyPressAtEnd = false;
 bool s_run = true;
 std::string s_configDir;
+
+std::string LOGO = ""
+"                              _           _       \n"
+"  __ _  __ _ _   _  __ _  ___| |__   __ _(_)_ __  \n"
+" / _ '|/ _' | | | |/ _' |/ __| '_ \\ / _' | | '_ \\ \n"
+"| (_| | (_| | |_| | (_| | (__| | | | (_| | | | | |\n"
+" \\__,_|\\__, |\\__,_|\\__,_|\\___|_| |_|\\__,_|_|_| |_|\n"
+"          |_| "
+	  "Update Often! https://gitlab.com/aquachain/aquachain\n";
 
 void ctrlCHandler() {
 	if (s_run) {
@@ -126,9 +135,9 @@ int main(int argc, char** argv) {
 #endif
 
 	// welcome message
-	printf("-- AquaCppMiner %s %s (use -h for help, ctrl+c to quit)\n",
+	printf("-- AquaCppMiner %s %s (use -h for help, ctrl+c to quit)\n%s\n",
 		VERSION.c_str(),
-		ARCH);
+		ARCH, LOGO.c_str());
 
 	printOptimizationsInfo();
 
@@ -198,19 +207,6 @@ int main(int argc, char** argv) {
 	if (!setCtrlCHandler(ctrlCHandler)) {
 		logLine(COORDINATOR_LOG_PREFIX, "Error: Could not set ctrl+c handler, aborting");
 		return 1;
-	}
-#endif
-
-	// perform tests
-#if ARGON_VALIDITY_CHECK
-	if (argonParamsMineable()) {
-		if (!testAquaHashing()) {
-			logLine(COORDINATOR_LOG_PREFIX, "Error: Hashing tests failed !");
-			return 1;
-		}
-
-		// free any memory used for tests
-		freeCurrentThreadMiningMemory();
 	}
 #endif
 

@@ -81,7 +81,7 @@ bool testAquaHashing() {
 	// - setup argon params
 	Argon2_Context ctx;
 	uint8_t rawHash[ARGON2_HASH_LEN];
-	setupAquaArgonCtx(ctx, seed, rawHash);
+	setupAquaArgonCtx(ctx, 1, seed, rawHash);
 
 #if VERBOSE_TESTS	
 	printf("\n- Argon params -\n");
@@ -181,7 +181,8 @@ bool testAquaHashing() {
 		Argon2_Context ctx;
 		uint8_t rawHash[ARGON2_HASH_LEN];
 		generateAquaSeed(NONCE, WORK_HASH_HEX, seed);
-		setupAquaArgonCtx(ctx, seed, rawHash);
+        int version = 1;
+		setupAquaArgonCtx(ctx, version, seed, rawHash);
 
 		// setup params
 		const size_t N_ITER = 

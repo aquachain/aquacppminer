@@ -20,3 +20,4 @@ docs/
 BLAKE2/
 blake2/
 /premake5.lua
+/*.dat

@@ -12,13 +12,13 @@ Download [latest binaries](https://aquacha.in/latest/?sort=time&amp;order=desc)
     aquacppminer_avx : faster version, for CPUs supporting AVX instruction set
     aquacppminer_avx2: fastest version, for recent CPUs supporting AVX2 instruction set
 
-Use a tool like CPUZ to see if your CPU supports AVX / AVX2
+Use a tool like CPUZ (windows) or `lscpu` (linux) to see if your CPU supports AVX / AVX2
 
 ### Versions
 * 1.0: initial release
 * 1.1: fix occasional bad shares, linux/win/macOS build scripts
 * 1.2: less HTTP connections, --proxy option, developer options, reduced fee to 2%
-* 1.3.1: fee system removed
+* 1.3: fee removed
 
 ### Installation
 On Linux you may need to install some required packages first in order to build
@@ -58,17 +58,22 @@ Other platforms, just unzip to a folder and launch
 
 Pool Mining, auto thread count
 
-    aquacppminer -F http://pool.aquachain-foundation.org:8888/0x6e37abb108f4010530beb4bbfd9842127d8bfb3f
+    aquacppminer -F http://YOURPOOL:8888/0x6e37abb108f4010530beb4bbfd9842127d8bfb3f
 
 Pool Mining, 8 threads, getting more block stats from local aqua node
 
-    aquacppminer -t 8 -F http://pool.aquachain-foundation.org:8888/0x6e37abb108f4010530beb4bbfd9842127d8bfb3f -n http://127.0.0.1:8543
+    aquacppminer -t 8 -F http://YOURPOOL:8888/0x6e37abb108f4010530beb4bbfd9842127d8bfb3f -n http://127.0.0.1:8543
 
 Solo Mining to local aqua node, auto thread count
 
     aquacppminer --solo -F http://127.0.0.1:8543
 
+Proxied Mining to Remote Node
+    
+    aquacppminer --solo -F http://127.0.0.1:8543 --proxy socks5://127.0.0.1:1080
+
 ### Credits
+=======
 * Email: cryptogone.dev@gmail.com
 * Twitter: [@CryptoGonus](https://twitter.com/CryptoGonus)
 * Discord: cryptogone#3107

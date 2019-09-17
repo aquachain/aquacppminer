@@ -7,7 +7,7 @@
 
 static MiningConfig s_cfg;
 
-//const std::string FEES_ADDRESS = "0x59cf04d83051dd52b5b96bf9c5742684e93bd800";
+// TODO: read from https://aquachain.github.io/pools.json
 const std::vector<std::string> POOLS = {
 	"http://aqua.signal2noi.se:19998/",
 	"http://pool.aquachain-foundation.org:8888/",

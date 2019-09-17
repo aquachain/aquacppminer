@@ -120,8 +120,8 @@ bool createConfigFile(std::string &log) {
 		std::cout << 
 			(newCfg.soloMine ?
 				"Enter node url (ex: http://127.0.0.1:8543)" :
-				"Enter pool url (ex: http://pool.aquachain-foundation.org:8888/0x1d23de...)")
-				<< ", if empty, will pool mine to dev wallet): " << std::endl;
+				"Enter pool url (ex: http://aquacha.in:8888/0x1d23de...)")
+				<< ", if empty, will pool mine to local AQUA node): " << std::endl;
 		std::getline(std::cin, newCfg.getWorkUrl);
 		newCfg.getWorkUrl = trim(newCfg.getWorkUrl);
 		if (newCfg.getWorkUrl.size() == 0) {
@@ -139,7 +139,7 @@ bool createConfigFile(std::string &log) {
 		while (!fullNodeUrlOk) {
 			std::cin.clear();
 			std::cout <<
-				"Enter node url, ex: http://127.0.0.1:8543 (optional, enter to skip):"
+				"Enter AQUA RPC node url, ex: http://127.0.0.1:8543 (optional for stats, enter to skip):"
 				<< std::endl;
 			newCfg.fullNodeUrl = readInput();
 			fullNodeUrlOk = true;
