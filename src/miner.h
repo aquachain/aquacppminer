@@ -41,12 +41,6 @@ bool generateAquaSeed(
 	std::string workHashHex,
 	Bytes& seed);
 
-void setupAquaArgonCtx(
-	Argon2_Context &ctx,
-    int version,
-	const Bytes &seed,
-	uint8_t* outHashPtr);
-
 inline void mpz_fromBytesNoInit(uint8_t* bytes, size_t count, mpz_t mpz_result) {
 	const int ORDER = 1;
 	const int ENDIAN = 1;
@@ -61,3 +55,7 @@ inline void mpz_fromBytes(uint8_t* bytes, size_t count, mpz_t mpz_result) {
 
 void setArgonParams(long t_cost, long m_cost, long lanes);
 bool argonParamsMineable();
+void setupAquaArgonCtx(
+	Argon2_Context &ctx,
+	const Bytes &seed,
+	uint8_t* outHashPtr);

@@ -64,8 +64,7 @@ static bool s_bMinerThreadsRun = true;
 static std::atomic<uint32_t> s_nBlocksFound(0);
 static std::atomic<uint32_t> s_nSharesFound(0);
 static std::atomic<uint32_t> s_nSharesAccepted(0);
-
-static std::mutex hash_version_mutex; // guards argon2's parameters
+extern std::atomic<int> s_version;
 
 // use same atomic for miners and update thread http request ID
 extern std::atomic<uint32_t> s_nodeReqId;
@@ -92,7 +91,7 @@ const std::vector<int> AQUA_HF10 = { 1, 64, 1 };
 
 const std::vector<int> memorycosts = { 0, AQUA_HF7[1], AQUA_HF8[1], AQUA_HF9[1], AQUA_HF10[1]};
 
-uint32_t getMemoryCost(int version) {
+uint32_t version2memcost(int version) {
   switch (version) {
     case 2:
       return 1;
@@ -156,7 +155,7 @@ uint32_t getTotalBlocksAccepted()
 static std::mutex s_alloc_mutex;
 std::map<std::thread::id, uint8_t*> threadBlocks;
 
-#define USE_STATIC_BLOCKS (1)
+#define USE_STATIC_BLOCKS (0)
 int myAlloc(uint8_t **memory, size_t bytes_to_allocate)
 {
 	auto tId = std::this_thread::get_id();
@@ -237,28 +236,9 @@ void updateAquaSeed(
 	}
 }
 
-void setArgonParams(long t_cost, long m_cost, long lanes) {
-	printf("Setting argon2 params\n");
-	// argon_prms_mineable = (t_cost == AQUA_HF7[0]) && (m_cost == AQUA_HF7[1]) && (lanes == AQUA_HF7[2]);
-
-	// set new params globally
-	//DEFAULT_AQUA_ARGON_TIME = t_cost;
-	//DEFAULT_AQUA_ARGON_MEM = m_cost;
-	//DEFAULT_AQUA_ARGON_LANES = lanes;
-	s_ctx.t_cost = t_cost;
-	s_ctx.m_cost = m_cost;
-	s_ctx.lanes = lanes;
-
-	// log
-	logLine(s_logPrefix,"--- New AQUA Argon2id Parameters ---");
-	logLine(s_logPrefix, "t_cost        : %u", s_ctx.t_cost);
-	logLine(s_logPrefix, "m_cost        : %u", s_ctx.m_cost);
-	logLine(s_logPrefix,"lanes         : %u", s_ctx.lanes);
-}
 
 void setupAquaArgonCtx(
 	Argon2_Context &ctx, // params
-    int version, // hash version
 	const Bytes &seed,   // input
 	uint8_t* outHashPtr) // output
 {
@@ -273,7 +253,7 @@ void setupAquaArgonCtx(
 	ctx.version = ARGON2_VERSION_NUMBER;
 	ctx.flags = ARGON2_DEFAULT_FLAGS;
 	ctx.t_cost = 1;
-	ctx.m_cost = getMemoryCost(version);
+	ctx.m_cost = version2memcost(s_version);
 	ctx.lanes = 1;
 	ctx.threads = 1;
 #if USE_CUSTOM_ALLOCATOR
@@ -316,7 +296,7 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId)
 		sizeof(submitParams),
 		"{\"jsonrpc\":\"2.0\", \"id\" : %d, \"method\" : \"aqua_submitWork\", "
 		"\"params\" : [\"%s\",\"%s\",\"0x0000000000000000000000000000000000000000000000000000000000000000\"]}",
-		++s_nodeReqId,
+		1,
 		nonceStr.c_str(),
 		hashStr.c_str());
 
@@ -344,6 +324,7 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId)
 			pMinerInfo->logPrefix,
 			"\n\n!!! httpPost failed while trying to submit nonce %s!!!\n",
 			nonceStr.c_str());
+			std::this_thread::sleep_for(std::chrono::milliseconds(3000));
 	}
 	else {
 		// check that "result" is true
@@ -382,18 +363,30 @@ void submitThreadFn(uint64_t nonceVal, std::string hashStr, int minerThreadId)
 	s_nSharesFound++;
 }
 
-bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context &ctx)
-{
-	// update the seed with the new nonce
-	updateAquaSeed(nonce, s_seed);
-
-	// argon hash
-	int res = argon2_ctx(&ctx, Argon2_id);
+bool aquahash(const int version, Argon2_Context *ctx){
+    ctx->m_cost = version2memcost(version);
+ //   printf("mcost=%d\n", ctx->m_cost);
+	int res = argon2_ctx(ctx, Argon2_id);
 	if (res != ARGON2_OK) {
 		logLine(s_logPrefix, "Error: argon2 failed with code %d", res);
 		assert(0);
 		return false;
 	}
+    return true;
+}
+
+bool hash(const WorkParams& p, mpz_t mpz_result, uint64_t nonce, Argon2_Context &ctx)
+{
+    if (p.version < 2) {
+      printf("invalid algorithm version\n");
+      return false;
+    }
+
+	// update the seed with the new nonce
+	updateAquaSeed(nonce, s_seed);
+
+	// argon hash
+    int res = aquahash(s_version, &ctx);
 
 	// convert hash to a mpz (big int)
 	mpz_fromBytesNoInit(ctx.out, ctx.outlen, mpz_result);
@@ -437,7 +430,7 @@ void minerThreadFn(int minerID)
 
 	// init thread TLS variables that need it
 	s_seed.resize(40, 0);
-	setupAquaArgonCtx(s_ctx, 2, s_seed, s_argonHash);
+	setupAquaArgonCtx(s_ctx, s_seed, s_argonHash);
 
 	// init mpz that will hold result
 	// initialization is pretty costly, so should stay here, done only one time
@@ -452,40 +445,14 @@ void minerThreadFn(int minerID)
 	while (s_bMinerThreadsRun) {
 		// get params for current block
 		WorkParams prms = currentWorkParams();
-		if (prms.version != version) {
+		if (version2memcost(s_version) != s_ctx.m_cost) {
             if (prms.version == 0) {
-                break;
+              printf("hash version must be 2 or higher\n");
+              break;
             }
-			s_workParams_mutex.lock();
-			version = prms.version;
-			printf("[%s] Activating Hash Version: %d (m=%d)\n", s_logPrefix, version,getMemoryCost(version));
-            /*
-			switch (version) {
-				case -1:
-					assert(0);
-					break;
-				case 0:
-                    assert(0);
-					break;
-				case 1:
-                    assert(0);
-					break;
-				case 2: // HF5
-					s_ctx.m_cost = AQUA_HF8[1];
-					break;
-				case 3:  // HF9
-					s_ctx.m_cost = AQUA_HF9[1];
-					break;
-				case 4:  //HF10
-					s_ctx.m_cost = AQUA_HF10[1];
-					break;
-
-			}
-            */
-			setupAquaArgonCtx(s_ctx, version, s_seed, s_argonHash);
-
-			s_workParams_mutex.unlock();
-            continue;
+			version = s_version;
+			printf("[%s] Activating Hash Version: %d (m=%d)\n", s_logPrefix, version,version2memcost(version));
+	        setupAquaArgonCtx(s_ctx, s_seed, s_argonHash);
 		}
 		// if params valid
 		if (prms.hash.size() != 0) {
@@ -569,4 +536,10 @@ void stopMinerThreads()
 	}
 	s_minerThreads.clear();
 	destroyHttpConnectionHandle(s_httpHandleSubmit);
+}
+void setArgonParams(long t_cost, long m_cost, long lanes, Argon2_Context *ctx) {
+	printf("Setting argon2 params\n");
+	ctx->t_cost = t_cost;
+	ctx->m_cost = m_cost;
+	ctx->lanes = lanes;
 }

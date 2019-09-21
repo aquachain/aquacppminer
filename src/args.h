@@ -7,12 +7,12 @@ void printUsage();
 std::pair<bool, uint32_t> parseRefreshRate(const std::string& refreshRateStr);
 
 const std::string OPT_USAGE = "-h";
+const std::string OPT_USAGE2 = "-help";
 const std::string OPT_NTHREADS = "-t";
 const std::string OPT_GETWORK_URL = "-F";
 const std::string OPT_FULLNODE_URL = "-n";
 const std::string OPT_REFRESH_RATE = "-r";
 const std::string OPT_SOLO = "--solo";
-const std::string OPT_ARGON = "--argon";
 const std::string OPT_PROXY = "--proxy";
 
 const std::string s_usageMsg =
@@ -23,6 +23,6 @@ const std::string s_usageMsg =
 "  -r rate        : pool refresh rate in milliseconds, or 3s, 2.5m, default is 3s\n"
 "  --solo         : solo mining, -F needs to be the node url or empty\n"
 "  --proxy        : proxy to use, ex: --proxy socks5://127.0.0.1:9150\n"
-"  --argon x,y,z  : use specific argon params (ex: 4,512,1)\n"
 "  -h             : display this help message and exit\n"
 ;
+

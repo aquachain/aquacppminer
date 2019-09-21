@@ -38,7 +38,7 @@ std::mutex s_workParams_mutex;
 static WorkParams s_workParams;
 std::atomic<uint32_t> s_nodeReqId = { 0 };
 std::atomic<uint32_t> s_poolGetWorkCount = { 0 }; // number of succesfull getWork done so far
-
+std::atomic<int> s_version = { 0 };
 static std::map<std::string, http_connection_handle_t> s_httpHandles;
 
 uint32_t getPoolGetWorkCount() {
@@ -78,7 +78,7 @@ static bool performGetWorkRequest(const std::string &nodeUrl, std::string &respo
 		getWorkParams, 
 		sizeof(getWorkParams), 
 		"{\"jsonrpc\":\"2.0\", \"id\" : %d, \"method\" : \"aqua_getWork\", \"params\" : null}",
-		s_nodeReqId++);	
+		1);	
 	return httpPost(getHandle(nodeUrl), nodeUrl, getWorkParams, response, &HTTP_HEADER);
 }
 
@@ -250,6 +250,11 @@ static bool setCurrentWork(const Document &work, WorkParams &workParams) {
 			workParams.version = -1;
 			break;
 	}
+    if (workParams.version < 2) {
+        printf("could not set version hash\n");
+        return false;
+    }
+    s_version = workParams.version;
 	//printf("Hash: %s\n", resultArray[0].c_str());
 	//printf("Version: %c\n", resultArray[1][65]);
 	//printf("Difficulty: %s\n", resultArray[2].c_str());
@@ -274,7 +279,7 @@ static bool setCurrentWork(const Document &work, WorkParams &workParams) {
 	// store work hash
 	workParams.hash = resultArray[0];
 
-	return true;
+	return workParams.version > 1;
 }
 
 bool requestPoolParams(const MiningConfig& config, WorkParams &workParams, bool verbose)

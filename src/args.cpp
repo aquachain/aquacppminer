@@ -42,6 +42,10 @@ bool parseArgs(const char* prefix, int argc, char** argv)
 		printUsage();
 		return false;
 	}
+	if (ip.cmdOptionExists(OPT_USAGE2)) {
+		printUsage();
+		return false;
+	}
 
 	if (ip.cmdOptionExists(OPT_PROXY)) {
 		std::string s = ip.getCmdOption(OPT_PROXY);
@@ -85,22 +89,8 @@ bool parseArgs(const char* prefix, int argc, char** argv)
 		cfg.fullNodeUrl = ip.getCmdOption(OPT_FULLNODE_URL);
 	}
 
-	if (ip.cmdOptionExists(OPT_ARGON)) {
-		std::string s = ip.getCmdOption(OPT_ARGON);
-		uint32_t t_cost, m_cost, lanes;
-		auto count = sscanf(s.c_str(), "%u,%u,%u", &t_cost, &m_cost, &lanes);
-		if (count != 3) {
-			logLine(prefix, "Warning: invalid %s parameters: %s", 
-			OPT_ARGON.c_str(),
-			s.c_str());
-			return false;
-		}
-		else {
-			setArgonParams(t_cost, m_cost, lanes);
-		}
-	}
-
 	setMiningConfig(cfg);
 
 	return true;
 }
+
